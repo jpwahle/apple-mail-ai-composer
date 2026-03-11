@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Mail Composer — AI-powered email replies for Apple Mail</title>
+  <meta name="description" content="A native macOS menu bar app that uses AI to help you write email replies in Apple Mail. Open source, bring your own API key.">
+  <meta property="og:title" content="AI Mail Composer">
+  <meta property="og:description" content="Type your thoughts. AI writes the email.">
+  <meta property="og:image" content="https://jpwahle.github.io/ai-apple-mail/logo.png">
+  <link rel="icon" href="logo.png" type="image/png">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --bg: #ffffff;
+      --bg-soft: #f8f8fa;
+      --text: #111111;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --border: #e5e5e5;
+      --shadow: 0 2px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.12);
+      --radius: 12px;
+      --blue: #4a9eff;
+      --green: #28c840;
+      --gold: #f5a623;
+      --max-width: 900px;
+      --traffic-red: #ff5f57;
+      --traffic-yellow: #febc2e;
+      --traffic-green: #28c840;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ---- Layout ---- */
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ---- macOS Window Component ---- */
+    .mac-window {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .mac-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #f9f9f9;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mac-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mac-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .mac-dot--red { background: var(--traffic-red); }
+    .mac-dot--yellow { background: var(--traffic-yellow); }
+    .mac-dot--green { background: var(--traffic-green); }
+
+    .mac-title {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+      flex: 1;
+      text-align: center;
+      margin-right: 44px;
+    }
+
+    .mac-body {
+      padding: 24px;
+    }
+
+    /* ---- Scroll Reveal ---- */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ---- Keyframes ---- */
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      .mac-body { padding: 16px; }
+      .mac-titlebar { padding: 10px 12px; }
+      .mac-dot { width: 10px; height: 10px; }
+    }
+
+    /* ---- Laurel Badge ---- */
+    .laurel-section {
+      padding: 64px 0 32px;
+      text-align: center;
+    }
+
+    .laurel-logo {
+      display: block;
+      width: 80px;
+      height: 80px;
+      border-radius: 18px;
+      margin: 0 auto 16px;
+    }
+
+    .laurel-badge {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 24px;
+    }
+
+    .laurel-svg {
+      width: 220px;
+      height: auto;
+    }
+
+    .laurel-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+    }
+
+    .laurel-heading {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--text);
+    }
+
+    .laurel-stars {
+      font-size: 22px;
+      color: var(--gold);
+      margin-top: 4px;
+      letter-spacing: 2px;
+    }
+
+    .open-source-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 14px;
+      margin-bottom: 16px;
+    }
+
+    .download-btn {
+      display: inline-block;
+      background: var(--text);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px 32px;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+
+    .download-btn:hover {
+      opacity: 0.85;
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      padding: 48px 0 80px;
+      text-align: center;
+    }
+
+    .hero-headline {
+      font-size: 44px;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+
+    .hero-sub {
+      font-size: 18px;
+      color: var(--text-secondary);
+      margin-bottom: 48px;
+    }
+
+    .hero-window {
+      text-align: left;
+    }
+
+    .hero-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .hero-input {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text);
+      min-height: 48px;
+      padding: 12px 16px;
+      background: var(--bg-soft);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: var(--text);
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    .hero-generate-btn {
+      display: block;
+      width: 100%;
+      margin: 16px 0;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font);
+      color: #fff;
+      background: var(--blue);
+      border: none;
+      border-radius: 8px;
+      cursor: default;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .hero-generate-btn.pulse {
+      transform: scale(0.97);
+      box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.3);
+    }
+
+    .hero-output-zone {
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .hero-output-zone.visible {
+      opacity: 1;
+    }
+
+    .hero-output-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .hero-output-text {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text);
+      padding: 12px 16px;
+      background: var(--bg-soft);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      min-height: 48px;
+    }
+
+    .shimmer-bar {
+      height: 14px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #e5e5e5 25%, #f0f0f0 50%, #e5e5e5 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+
+    .shimmer-bar:last-child { width: 60%; margin-bottom: 0; }
+
+    /* ---- Feature Sections ---- */
+    .feature-section {
+      padding: 80px 0;
+    }
+
+    .feature-section--alt {
+      background: var(--bg-soft);
+    }
+
+    .feature-section h2 {
+      font-size: 32px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .feature-section > .container > p {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 17px;
+      margin-bottom: 40px;
+    }
+
+    /* -- Conversation context mock -- */
+    .email-thread {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .email-msg {
+      padding: 12px 16px;
+      background: var(--bg-soft);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .email-msg--highlight {
+      border-color: var(--blue);
+      background: rgba(74, 158, 255, 0.05);
+    }
+
+    .email-from {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .email-subject {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .email-snippet {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .context-indicator {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--blue);
+      padding: 8px;
+    }
+
+    .context-icon {
+      display: inline-block;
+      animation: float 2s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    /* -- Model selector mock -- */
+    .model-selector-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .model-dropdown {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .model-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .model-option:last-child { border-bottom: none; }
+
+    .model-option--selected {
+      background: rgba(74, 158, 255, 0.06);
+    }
+
+    .model-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .model-check {
+      margin-left: auto;
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    /* -- BYOK mock -- */
+    .key-settings {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .key-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-soft);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .key-provider {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .key-field {
+      font-size: 13px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      color: var(--text-muted);
+    }
+
+    .keychain-badge {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 8px;
+    }
+
+    /* ---- Footer ---- */
+    .site-footer {
+      padding: 48px 0;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 12px;
+    }
+
+    .footer-links a {
+      font-size: 14px;
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+
+    .footer-links a:hover { color: var(--text); }
+
+    .footer-copy {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* ---- Responsive additions ---- */
+    @media (max-width: 640px) {
+      .hero-headline { font-size: 28px; }
+      .hero-sub { font-size: 16px; margin-bottom: 32px; }
+      .feature-section h2 { font-size: 24px; }
+      .feature-section { padding: 56px 0; }
+      .laurel-svg { width: 160px; }
+      .laurel-heading { font-size: 14px; }
+      .laurel-stars { font-size: 18px; }
+      .key-row { flex-direction: column; gap: 4px; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Laurel Badge -->
+  <section class="laurel-section">
+    <div class="container">
+      <img src="logo.png" class="laurel-logo" alt="AI Mail Composer">
+      <div class="laurel-badge">
+        <img src="laurel.svg" class="laurel-svg" alt="">
+        <div class="laurel-text">
+          <div class="laurel-heading">#1 Apple Mail<br>AI Integration</div>
+          <div class="laurel-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        </div>
+      </div>
+      <br>
+      <div class="open-source-badge">Open Source</div>
+      <br>
+      <a href="https://github.com/jpwahle/ai-apple-mail/releases/latest" class="download-btn" id="download-btn">Download Latest</a>
+    </div>
+  </section>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-headline">Type your thoughts. AI writes the email.</h1>
+      <p class="hero-sub">A native macOS menu bar app for Apple Mail.</p>
+
+      <div class="mac-window hero-window">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <div class="mac-dot mac-dot--red"></div>
+            <div class="mac-dot mac-dot--yellow"></div>
+            <div class="mac-dot mac-dot--green"></div>
+          </div>
+          <div class="mac-title">AI Mail Composer</div>
+        </div>
+        <div class="mac-body">
+          <div class="hero-input-zone">
+            <label class="hero-label">Your thoughts</label>
+            <div class="hero-input" id="hero-input"><span class="cursor" id="hero-cursor"></span></div>
+          </div>
+          <button class="hero-generate-btn" id="hero-generate-btn">Generate &#x2325;H</button>
+          <div class="hero-output-zone" id="hero-output-zone">
+            <div class="hero-output-label">AI Reply</div>
+            <div class="hero-output-text" id="hero-output-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature: Conversation Context -->
+  <section class="feature-section feature-section--alt">
+    <div class="container fade-up">
+      <h2>Reads the whole conversation</h2>
+      <p>AI gets the full email thread as context &mdash; not just the last message.</p>
+
+      <div class="mac-window">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <div class="mac-dot mac-dot--red"></div>
+            <div class="mac-dot mac-dot--yellow"></div>
+            <div class="mac-dot mac-dot--green"></div>
+          </div>
+          <div class="mac-title">Mail &mdash; Re: Thursday lunch?</div>
+        </div>
+        <div class="mac-body">
+          <div class="email-thread">
+            <div class="email-msg">
+              <div class="email-from">From: Sarah Chen</div>
+              <div class="email-subject">Re: Thursday lunch?</div>
+              <div class="email-snippet">Hey! Want to grab lunch on Thursday? I was thinking that new place on 5th street.</div>
+            </div>
+            <div class="email-msg">
+              <div class="email-from">From: You</div>
+              <div class="email-snippet">Sounds good! What time works for you?</div>
+            </div>
+            <div class="email-msg email-msg--highlight">
+              <div class="email-from">From: Sarah Chen</div>
+              <div class="email-snippet">How about 12:30? I'm free after my morning meeting.</div>
+            </div>
+          </div>
+          <div class="context-indicator">
+            <span class="context-icon">&#8593;</span> AI reads all 3 messages for context
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature: Any Model -->
+  <section class="feature-section">
+    <div class="container fade-up">
+      <h2>Use any model you want</h2>
+      <p>Switch between providers &mdash; use whatever works best for you.</p>
+
+      <div class="mac-window">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <div class="mac-dot mac-dot--red"></div>
+            <div class="mac-dot mac-dot--yellow"></div>
+            <div class="mac-dot mac-dot--green"></div>
+          </div>
+          <div class="mac-title">AI Mail Composer &mdash; Settings</div>
+        </div>
+        <div class="mac-body">
+          <div class="model-selector-label">Model</div>
+          <div class="model-dropdown">
+            <div class="model-option model-option--selected">
+              <span class="model-dot" style="background: #10a37f;"></span>
+              GPT-4o
+              <span class="model-check">&#10003;</span>
+            </div>
+            <div class="model-option">
+              <span class="model-dot" style="background: #d97706;"></span>
+              Claude Sonnet 4
+            </div>
+            <div class="model-option">
+              <span class="model-dot" style="background: #4285f4;"></span>
+              Gemini 2.5 Pro
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature: BYOK -->
+  <section class="feature-section feature-section--alt">
+    <div class="container fade-up">
+      <h2>Your keys. Your data.</h2>
+      <p>No accounts. No subscriptions. API keys stay in macOS Keychain.</p>
+
+      <div class="mac-window">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <div class="mac-dot mac-dot--red"></div>
+            <div class="mac-dot mac-dot--yellow"></div>
+            <div class="mac-dot mac-dot--green"></div>
+          </div>
+          <div class="mac-title">AI Mail Composer &mdash; API Keys</div>
+        </div>
+        <div class="mac-body">
+          <div class="key-settings">
+            <div class="key-row">
+              <span class="key-provider">Anthropic</span>
+              <span class="key-field">sk-ant-&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+            </div>
+            <div class="key-row">
+              <span class="key-provider">OpenAI</span>
+              <span class="key-field">sk-&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+            </div>
+            <div class="key-row">
+              <span class="key-provider">Google</span>
+              <span class="key-field">AIza&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+            </div>
+          </div>
+          <div class="keychain-badge">&#x1F512; Stored in macOS Keychain</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-links">
+        <a href="https://github.com/jpwahle/ai-apple-mail">GitHub</a>
+        <a href="https://github.com/jpwahle/ai-apple-mail/releases/latest" id="footer-version">Latest Release</a>
+      </div>
+      <div class="footer-copy">MIT License &middot; Made by Jan Philip Wahle</div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      var inputEl = document.getElementById('hero-input');
+      var cursorEl = document.getElementById('hero-cursor');
+      var btnEl = document.getElementById('hero-generate-btn');
+      var outputZone = document.getElementById('hero-output-zone');
+      var outputText = document.getElementById('hero-output-text');
+
+      var inputMsg = 'hey yeah that wroks for me, lets do thurday lunch im free after 1 lol';
+      var outputMsg = 'Hi Sarah, Thursday lunch sounds great! I\u2019m available any time after 1 PM. Want to meet at the usual place?';
+      var outputWords = outputMsg.split(' ');
+
+      function runCycle() {
+        // Reset
+        inputEl.textContent = '';
+        inputEl.appendChild(cursorEl);
+        outputZone.classList.remove('visible');
+        outputText.innerHTML = '';
+        btnEl.classList.remove('pulse');
+
+        var charIdx = 0;
+
+        // Phase 1: Type input char by char
+        var typeTimer = setInterval(function() {
+          if (charIdx < inputMsg.length) {
+            inputEl.insertBefore(document.createTextNode(inputMsg[charIdx]), cursorEl);
+            charIdx++;
+          } else {
+            clearInterval(typeTimer);
+            // Phase 2: Button pulse
+            setTimeout(function() {
+              cursorEl.style.display = 'none';
+              btnEl.classList.add('pulse');
+
+              setTimeout(function() {
+                btnEl.classList.remove('pulse');
+                // Phase 3: Show shimmer
+                outputZone.classList.add('visible');
+                outputText.innerHTML = '<div class="shimmer-bar"></div><div class="shimmer-bar"></div><div class="shimmer-bar"></div>';
+
+                // Phase 4: Stream output word by word
+                setTimeout(function() {
+                  outputText.textContent = '';
+                  var wordIdx = 0;
+                  var wordTimer = setInterval(function() {
+                    if (wordIdx < outputWords.length) {
+                      outputText.textContent += (wordIdx > 0 ? ' ' : '') + outputWords[wordIdx];
+                      wordIdx++;
+                    } else {
+                      clearInterval(wordTimer);
+                      // Phase 5: Hold, then restart
+                      setTimeout(function() {
+                        cursorEl.style.display = '';
+                        runCycle();
+                      }, 3000);
+                    }
+                  }, 60);
+                }, 800);
+              }, 300);
+            }, 500);
+          }
+        }, 40);
+      }
+
+      runCycle();
+    })();
+
+    // --- GitHub Release Auto-Update ---
+    (function() {
+      var btn = document.getElementById('download-btn');
+      var footerVersion = document.getElementById('footer-version');
+      fetch('https://api.github.com/repos/jpwahle/ai-apple-mail/releases/latest')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.tag_name) {
+            var version = data.tag_name;
+            btn.textContent = 'Download ' + version;
+            footerVersion.textContent = version;
+            var dmg = (data.assets || []).find(function(a) { return a.name.endsWith('.dmg'); });
+            if (dmg) {
+              btn.href = dmg.browser_download_url;
+            }
+          }
+        })
+        .catch(function() { /* fallback: button already links to releases/latest */ });
+    })();
+
+    // --- Scroll Reveal (Intersection Observer) ---
+    (function() {
+      var targets = document.querySelectorAll('.fade-up');
+      if (!targets.length) return;
+      var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15 });
+      targets.forEach(function(el) { observer.observe(el); });
+    })();
+  </script>
+</body>
+</html>
