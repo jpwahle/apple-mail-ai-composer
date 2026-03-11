@@ -20,7 +20,7 @@ struct ModelSelectionView: View {
     }
 
     private var isFetching: Bool {
-        settingsStore.isFetchingAnthropic || settingsStore.isFetchingOpenAI
+        settingsStore.isFetchingAnthropic || settingsStore.isFetchingOpenAI || settingsStore.isFetchingGemini
     }
 
     private var emptyState: some View {
@@ -81,6 +81,14 @@ struct ModelSelectionView: View {
                         }
                     }
                 }
+                if !settingsStore.geminiModels.isEmpty {
+                    Section("Google Gemini") {
+                        ForEach(settingsStore.geminiModels) { model in
+                            modelRow(model)
+                                .tag(model.id)
+                        }
+                    }
+                }
             }
             .listStyle(.bordered)
 
@@ -90,6 +98,10 @@ struct ModelSelectionView: View {
             }
             if let err = settingsStore.openaiFetchError {
                 Text("OpenAI error: \(err)")
+                    .font(.caption2).foregroundStyle(.red).padding(.horizontal)
+            }
+            if let err = settingsStore.geminiFetchError {
+                Text("Gemini error: \(err)")
                     .font(.caption2).foregroundStyle(.red).padding(.horizontal)
             }
         }

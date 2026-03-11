@@ -10,13 +10,16 @@ final class SettingsStore: ObservableObject {
 
     @Published var anthropicModels: [AIModel] = []
     @Published var openaiModels: [AIModel] = []
+    @Published var geminiModels: [AIModel] = []
     @Published var isFetchingAnthropic = false
     @Published var isFetchingOpenAI = false
+    @Published var isFetchingGemini = false
     @Published var anthropicFetchError: String?
     @Published var openaiFetchError: String?
+    @Published var geminiFetchError: String?
 
     var allModels: [AIModel] {
-        anthropicModels + openaiModels
+        anthropicModels + openaiModels + geminiModels
     }
 
     var selectedModel: AIModel? {
@@ -71,6 +74,19 @@ final class SettingsStore: ObservableObject {
                 openaiFetchError = error.localizedDescription
             }
             isFetchingOpenAI = false
+
+        case .gemini:
+            isFetchingGemini = true
+            geminiFetchError = nil
+            do {
+                geminiModels = try await ModelFetcher.fetchGeminiModels(apiKey: apiKey)
+                if selectedModelID.isEmpty, let first = geminiModels.first {
+                    selectedModelID = first.id
+                }
+            } catch {
+                geminiFetchError = error.localizedDescription
+            }
+            isFetchingGemini = false
         }
     }
 
@@ -81,6 +97,9 @@ final class SettingsStore: ObservableObject {
             }
             if getAPIKey(for: .openai) != nil {
                 group.addTask { await self.fetchModels(for: .openai) }
+            }
+            if getAPIKey(for: .gemini) != nil {
+                group.addTask { await self.fetchModels(for: .gemini) }
             }
         }
     }

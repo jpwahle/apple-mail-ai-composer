@@ -61,4 +61,35 @@ enum ModelFetcher {
         }
         .sorted { $0.id < $1.id }
     }
+
+    static func fetchGeminiModels(apiKey: String) async throws -> [AIModel] {
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?key=\(apiKey)")!
+        let request = URLRequest(url: url)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw AIClientError.requestFailed("Failed to fetch Gemini models: \(body)")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let modelsArray = json["models"] as? [[String: Any]]
+        else {
+            throw AIClientError.invalidResponse("Could not parse Gemini models response")
+        }
+
+        // Filter to generative models that support generateContent
+        return modelsArray.compactMap { obj -> AIModel? in
+            guard let name = obj["name"] as? String,
+                  let displayName = obj["displayName"] as? String,
+                  let supportedMethods = obj["supportedGenerationMethods"] as? [String],
+                  supportedMethods.contains("generateContent")
+            else { return nil }
+            // name is like "models/gemini-2.0-flash", strip the prefix for the ID
+            let id = name.hasPrefix("models/") ? String(name.dropFirst("models/".count)) : name
+            return AIModel(id: id, displayName: displayName, provider: .gemini)
+        }
+        .sorted { $0.displayName < $1.displayName }
+    }
 }

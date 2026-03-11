@@ -156,14 +156,14 @@ struct ComposerView: View {
                 Button("Copy & Switch to Mail") {
                     viewModel.insertIntoMail()
                 }
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(.return, modifiers: .command)
             }
 
             if viewModel.state == .composing {
                 Button("Generate Reply") {
                     Task { await viewModel.generate() }
                 }
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(.return, modifiers: .command)
                 .disabled(viewModel.userThoughts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }

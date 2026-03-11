@@ -13,6 +13,11 @@ enum AIClientFactory {
                 throw AIClientError.missingAPIKey(.openai)
             }
             return OpenAIClient(apiKey: key, model: model.id)
+        case .gemini:
+            guard let key = keychainService.getKey(for: .gemini), !key.isEmpty else {
+                throw AIClientError.missingAPIKey(.gemini)
+            }
+            return GeminiClient(apiKey: key, model: model.id)
         }
     }
 }
