@@ -38,10 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.addItem(NSMenuItem.separator())
         statusMenu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         statusMenu.addItem(NSMenuItem.separator())
-        statusMenu.addItem(NSMenuItem(title: "Quit AI Mail Composer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        statusMenu.addItem(NSMenuItem(title: "Quit Apple Mail AI Composer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "envelope.badge.fill", accessibilityDescription: "AI Mail Composer")
+            button.image = NSImage(systemSymbolName: "envelope.badge.fill", accessibilityDescription: "Apple Mail AI Composer")
             button.action = #selector(statusItemClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.target = self
@@ -129,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "AI Mail Composer"
+        window.title = "Apple Mail AI Composer"
         window.contentView = NSHostingView(rootView: settingsView)
         window.center()
         window.isReleasedWhenClosed = false

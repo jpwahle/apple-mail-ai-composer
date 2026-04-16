@@ -1,4 +1,4 @@
-APP_NAME = AI Mail Composer
+APP_NAME = Apple Mail AI Composer
 BUNDLE_NAME = AIMailComposer
 BUNDLE_ID = com.aiMailComposer
 VERSION = 0.1.0
@@ -90,13 +90,10 @@ notarize: sign
 	xcrun stapler staple "$(APP_BUNDLE)"
 	@echo "✅ Notarized and stapled: $(APP_BUNDLE)"
 
-# Create DMG for distribution
+# Create DMG for distribution (styled with drag-to-Applications layout)
 dmg: sign
 	@rm -f "$(BUILD_DIR)/$(BUNDLE_NAME).dmg"
-	hdiutil create -volname "$(APP_NAME)" \
-		-srcfolder "$(APP_BUNDLE)" \
-		-ov -format UDZO \
-		"$(BUILD_DIR)/$(BUNDLE_NAME).dmg"
+	./scripts/create-dmg.sh "$(APP_NAME)" "$(APP_BUNDLE)" "$(BUILD_DIR)/$(BUNDLE_NAME).dmg"
 	@echo "✅ DMG created: $(BUILD_DIR)/$(BUNDLE_NAME).dmg"
 
 # Build and run

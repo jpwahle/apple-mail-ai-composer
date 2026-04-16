@@ -9,6 +9,7 @@ final class UpdateChecker: ObservableObject {
     enum State: Equatable {
         case idle
         case checking
+        case upToDate
         case downloading
         case readyToInstall
         case installing
@@ -47,7 +48,7 @@ final class UpdateChecker: ObservableObject {
     /// are silent. On manual check, errors surface to the UI.
     func checkForUpdates(manual: Bool = false) {
         switch state {
-        case .idle, .failed: break
+        case .idle, .upToDate, .failed: break
         default: return
         }
         state = .checking
@@ -76,7 +77,7 @@ final class UpdateChecker: ObservableObject {
                 releaseNotes = json["body"] as? String
 
                 guard Self.isNewer(remote, than: currentVersion) else {
-                    state = .idle
+                    state = manual ? .upToDate : .idle
                     return
                 }
 
@@ -216,7 +217,7 @@ final class UpdateChecker: ObservableObject {
 
         let alert = NSAlert()
         alert.messageText = "Update Available"
-        alert.informativeText = "AI Mail Composer v\(version) is ready. Relaunch to update?"
+        alert.informativeText = "Apple Mail AI Composer v\(version) is ready. Relaunch to update?"
         alert.addButton(withTitle: "Relaunch Now")
         alert.addButton(withTitle: "Later")
         alert.alertStyle = .informational

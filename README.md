@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="logo.png" width="128" height="128" alt="AI Mail Composer logo">
+  <img src="logo.png" width="128" height="128" alt="Apple Mail AI Composer logo">
 </p>
 
-<h1 align="center">AI Mail Composer</h1>
+<h1 align="center">Apple Mail AI Composer</h1>
 
 <p align="center">
   A native macOS menu bar app that uses AI to help you write email replies in Apple Mail.
@@ -17,7 +17,7 @@
 
 ---
 
-AI Mail Composer lives in your menu bar and connects directly to Apple Mail. When you're composing a reply, press **Option + H** to open the composer panel. Type a few thoughts about what you want to say, pick an AI model, and the app writes your reply — matching the language and tone of the conversation.
+Apple Mail AI Composer lives in your menu bar and connects directly to Apple Mail. When you're composing a reply, press **Option + H** to open the composer panel. Type a few thoughts about what you want to say, pick an AI model, and the app writes your reply — matching the language and tone of the conversation.
 
 **Bring your own API key.** No accounts, no subscriptions, no middleman. Your key is stored in macOS Keychain and calls go directly to the provider.
 
@@ -37,7 +37,7 @@ AI Mail Composer lives in your menu bar and connects directly to Apple Mail. Whe
 
 ### Download
 
-Grab the latest `.dmg` from [Releases](../../releases), open it, and drag **AI Mail Composer** to your Applications folder.
+Grab the latest `.dmg` from [Releases](../../releases), open it, and drag **Apple Mail AI Composer** to your Applications folder.
 
 > **macOS Gatekeeper:** Since the app isn't signed with an Apple Developer certificate, macOS will block it on first launch. To open it:
 > 1. Right-click (or Control-click) the app and select **Open**
@@ -50,7 +50,7 @@ Grab the latest `.dmg` from [Releases](../../releases), open it, and drag **AI M
 
 ## Get Your API Key
 
-AI Mail Composer calls AI providers directly — you'll need an API key from at least one provider. Pick whichever you prefer:
+Apple Mail AI Composer calls AI providers directly — you'll need an API key from at least one provider. Pick whichever you prefer:
 
 ### Anthropic (Claude)
 
@@ -83,7 +83,7 @@ AI Mail Composer calls AI providers directly — you'll need an API key from at 
 
 ### Add Your Key to the App
 
-1. Click the **AI Mail Composer** icon in your menu bar
+1. Click the **Apple Mail AI Composer** icon in your menu bar
 2. Open **Settings**
 3. Paste your API key for the provider you chose
 4. The app will automatically fetch available models from that provider

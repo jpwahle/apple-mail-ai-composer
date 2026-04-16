@@ -101,6 +101,17 @@ struct GeneralSettingsView: View {
             }
             .controlSize(.small)
 
+        case .upToDate:
+            HStack(spacing: 6) {
+                Text("You're on the latest version.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Button("Check for Updates") {
+                    updateChecker.checkForUpdates(manual: true)
+                }
+                .controlSize(.small)
+            }
+
         case .checking:
             HStack(spacing: 6) {
                 ProgressView()
