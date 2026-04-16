@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Mail Composer — AI-powered email replies for Apple Mail</title>
+  <title>Apple Mail AI Composer — AI-powered email replies for Apple Mail</title>
   <meta name="description" content="A native macOS menu bar app that uses AI to help you write email replies in Apple Mail. Open source, bring your own API key.">
-  <meta property="og:title" content="AI Mail Composer">
+  <meta property="og:title" content="Apple Mail AI Composer">
   <meta property="og:description" content="Type your thoughts. AI writes the email.">
   <meta property="og:image" content="https://jpwahle.github.io/ai-apple-mail/logo.png">
   <link rel="icon" href="logo.png" type="image/png">
@@ -552,7 +552,7 @@
             <div class="mac-dot mac-dot--yellow"></div>
             <div class="mac-dot mac-dot--green"></div>
           </div>
-          <div class="mac-title">AI Mail Composer</div>
+          <div class="mac-title">Apple Mail AI Composer</div>
         </div>
         <div class="mac-body">
           <div class="hero-input-zone">
@@ -564,6 +564,118 @@
             <div class="hero-output-label">AI Reply</div>
             <div class="hero-output-text" id="hero-output-text"></div>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature: Conversation Context -->
+  <section class="feature-section feature-section--alt">
+    <div class="container fade-up">
+      <h2>Reads the whole conversation</h2>
+      <p>AI gets the full email thread as context &mdash; not just the last message.</p>
+
+      <div class="mac-window">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <div class="mac-dot mac-dot--red"></div>
+            <div class="mac-dot mac-dot--yellow"></div>
+            <div class="mac-dot mac-dot--green"></div>
+          </div>
+          <div class="mac-title">Mail &mdash; Re: Thursday lunch?</div>
+        </div>
+        <div class="mac-body">
+          <div class="email-thread">
+            <div class="email-msg">
+              <div class="email-from">From: Sarah Chen</div>
+              <div class="email-subject">Re: Thursday lunch?</div>
+              <div class="email-snippet">Hey! Want to grab lunch on Thursday? I was thinking that new place on 5th street.</div>
+            </div>
+            <div class="email-msg">
+              <div class="email-from">From: You</div>
+              <div class="email-snippet">Sounds good! What time works for you?</div>
+            </div>
+            <div class="email-msg email-msg--highlight">
+              <div class="email-from">From: Sarah Chen</div>
+              <div class="email-snippet">How about 12:30? I'm free after my morning meeting.</div>
+            </div>
+          </div>
+          <div class="context-indicator">
+            <span class="context-icon">&#8593;</span> AI reads all 3 messages for context
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature: Any Model -->
+  <section class="feature-section">
+    <div class="container fade-up">
+      <h2>Use any model you want</h2>
+      <p>Switch between providers &mdash; use whatever works best for you.</p>
+
+      <div class="mac-window">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <div class="mac-dot mac-dot--red"></div>
+            <div class="mac-dot mac-dot--yellow"></div>
+            <div class="mac-dot mac-dot--green"></div>
+          </div>
+          <div class="mac-title">AI Mail Composer &mdash; Settings</div>
+        </div>
+        <div class="mac-body">
+          <div class="model-selector-label">Model</div>
+          <div class="model-dropdown">
+            <div class="model-option model-option--selected">
+              <span class="model-dot" style="background: #10a37f;"></span>
+              GPT-4o
+              <span class="model-check">&#10003;</span>
+            </div>
+            <div class="model-option">
+              <span class="model-dot" style="background: #d97706;"></span>
+              Claude Sonnet 4
+            </div>
+            <div class="model-option">
+              <span class="model-dot" style="background: #4285f4;"></span>
+              Gemini 2.5 Pro
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature: BYOK -->
+  <section class="feature-section feature-section--alt">
+    <div class="container fade-up">
+      <h2>Your keys. Your data.</h2>
+      <p>No accounts. No subscriptions. API keys stay in macOS Keychain.</p>
+
+      <div class="mac-window">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <div class="mac-dot mac-dot--red"></div>
+            <div class="mac-dot mac-dot--yellow"></div>
+            <div class="mac-dot mac-dot--green"></div>
+          </div>
+          <div class="mac-title">AI Mail Composer &mdash; API Keys</div>
+        </div>
+        <div class="mac-body">
+          <div class="key-settings">
+            <div class="key-row">
+              <span class="key-provider">Anthropic</span>
+              <span class="key-field">sk-ant-&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+            </div>
+            <div class="key-row">
+              <span class="key-provider">OpenAI</span>
+              <span class="key-field">sk-&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+            </div>
+            <div class="key-row">
+              <span class="key-provider">Google</span>
+              <span class="key-field">AIza&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;</span>
+            </div>
+          </div>
+          <div class="keychain-badge">&#x1F512; Stored in macOS Keychain</div>
         </div>
       </div>
     </div>
