@@ -118,6 +118,108 @@ final class UpdateChecker: ObservableObject {
         }
     }
 
-    // MARK: - Alert (placeholder for Task 3)
-    private func showUpdateAlert() {}
+    // MARK: - Install & Relaunch
+
+    func install() {
+        guard let dmgPath = downloadedDMG else {
+            state = .failed("No downloaded update found.")
+            return
+        }
+
+        state = .installing
+
+        Task.detached {
+            let mountPoint = "/tmp/aimail-update"
+
+            do {
+                // Clean up any leftover mount
+                let unmountOld = Process()
+                unmountOld.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+                unmountOld.arguments = ["detach", mountPoint, "-quiet"]
+                try? unmountOld.run()
+                unmountOld.waitUntilExit()
+
+                // Mount DMG
+                let mount = Process()
+                mount.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+                mount.arguments = ["attach", dmgPath.path, "-nobrowse", "-readonly", "-mountpoint", mountPoint]
+                let mountPipe = Pipe()
+                mount.standardError = mountPipe
+                try mount.run()
+                mount.waitUntilExit()
+
+                guard mount.terminationStatus == 0 else {
+                    await MainActor.run { self.state = .failed("Failed to mount update DMG.") }
+                    return
+                }
+
+                // Find .app inside mount
+                let contents = try FileManager.default.contentsOfDirectory(atPath: mountPoint)
+                guard let appName = contents.first(where: { $0.hasSuffix(".app") }) else {
+                    await MainActor.run { self.state = .failed("No .app found in DMG.") }
+                    self.detach(mountPoint)
+                    return
+                }
+
+                let source = "\(mountPoint)/\(appName)"
+                let dest = Bundle.main.bundlePath
+
+                // Replace app via rsync
+                let rsync = Process()
+                rsync.executableURL = URL(fileURLWithPath: "/usr/bin/rsync")
+                rsync.arguments = ["-a", "--delete", "\(source)/", "\(dest)/"]
+                try rsync.run()
+                rsync.waitUntilExit()
+
+                guard rsync.terminationStatus == 0 else {
+                    await MainActor.run { self.state = .failed("Failed to copy update.") }
+                    self.detach(mountPoint)
+                    return
+                }
+
+                // Cleanup
+                self.detach(mountPoint)
+                try? FileManager.default.removeItem(at: dmgPath)
+
+                // Relaunch
+                let relaunch = Process()
+                relaunch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                relaunch.arguments = ["-n", dest]
+                try relaunch.run()
+
+                exit(0)
+
+            } catch {
+                await MainActor.run {
+                    self.state = .failed("Install error: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Detach a mounted DMG, ignoring errors.
+    private nonisolated func detach(_ mountPoint: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        process.arguments = ["detach", mountPoint, "-quiet"]
+        try? process.run()
+        process.waitUntilExit()
+    }
+
+    // MARK: - Alert
+
+    private func showUpdateAlert() {
+        guard let version = latestVersion else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Update Available"
+        alert.informativeText = "AI Mail Composer v\(version) is ready. Relaunch to update?"
+        alert.addButton(withTitle: "Relaunch Now")
+        alert.addButton(withTitle: "Later")
+        alert.alertStyle = .informational
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            install()
+        }
+    }
 }
