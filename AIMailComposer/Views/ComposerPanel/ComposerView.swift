@@ -697,10 +697,12 @@ private struct ModelPicker: View {
     @ObservedObject var settingsStore: SettingsStore
 
     @State private var hovering = false
+    @State private var showPopover = false
+    @State private var searchText = ""
 
     var body: some View {
-        Menu {
-            menuContent
+        Button {
+            showPopover.toggle()
         } label: {
             HStack(spacing: 6) {
                 ProviderGlyph(provider: settingsStore.selectedModel?.provider)
@@ -724,56 +726,123 @@ private struct ModelPicker: View {
                     .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             )
         }
-        .menuStyle(.button)
         .buttonStyle(.plain)
-        .menuIndicator(.hidden)
         .fixedSize()
         .onHover { hovering = $0 }
-    }
-
-    @ViewBuilder
-    private var menuContent: some View {
-        if settingsStore.allModels.isEmpty {
-            Text("No models configured. Add an API key in Settings.")
-        } else {
-            // Top-level: newest models across every provider.
-            Section("Latest") {
-                ForEach(settingsStore.popularModels) { model in
-                    modelButton(model, showProvider: true)
-                }
-            }
-
-            // Per-provider: top 4 newest inline, rest tucked under a nested
-            // submenu so clicking it opens the list instead of dismissing.
-            ForEach(settingsStore.sortedGroupedModels, id: \.0) { provider, models in
-                Section(provider.displayName) {
-                    let preview = Array(models.prefix(4))
-                    ForEach(preview) { model in
-                        modelButton(model, showProvider: false)
-                    }
-                    if models.count > preview.count {
-                        let overflow = Array(models.dropFirst(preview.count))
-                        Menu("All \(provider.displayName) models (\(models.count))") {
-                            ForEach(overflow) { model in
-                                modelButton(model, showProvider: false)
-                            }
-                        }
-                    }
-                }
-            }
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            popoverContent
+        }
+        .onChange(of: showPopover) { _, isShowing in
+            if !isShowing { searchText = "" }
         }
     }
 
+    // MARK: - Popover
+
     @ViewBuilder
-    private func modelButton(_ model: AIModel, showProvider: Bool) -> some View {
-        Button {
-            settingsStore.selectedModelID = model.id
-        } label: {
-            if showProvider {
-                Text("\(model.displayName) — \(model.provider.displayName)")
-            } else {
-                Text(model.displayName)
+    private var popoverContent: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 12))
+                TextField("Search models…", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.tertiary)
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            if settingsStore.allModels.isEmpty {
+                Text("No models configured.\nAdd an API key in Settings.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if searchText.isEmpty {
+                            popoverSectionHeader("Popular")
+                            ForEach(settingsStore.popularModels) { model in
+                                popoverModelRow(model, showProvider: true)
+                            }
+                            ForEach(settingsStore.sortedGroupedModels, id: \.0) { provider, models in
+                                popoverSectionHeader(provider.displayName)
+                                ForEach(models) { model in
+                                    popoverModelRow(model, showProvider: false)
+                                }
+                            }
+                        } else {
+                            let results = filteredModels
+                            if results.isEmpty {
+                                Text("No models matching \"\(searchText)\"")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                ForEach(results, id: \.0) { provider, models in
+                                    popoverSectionHeader(provider.displayName)
+                                    ForEach(models) { model in
+                                        popoverModelRow(model, showProvider: false)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .frame(maxHeight: 320)
+            }
+        }
+        .frame(width: 280)
+    }
+
+    private var filteredModels: [(AIProvider, [AIModel])] {
+        let query = searchText.lowercased()
+        return settingsStore.sortedGroupedModels.compactMap { provider, models in
+            let filtered = models.filter {
+                $0.displayName.lowercased().contains(query)
+                    || $0.id.lowercased().contains(query)
+            }
+            guard !filtered.isEmpty else { return nil }
+            return (provider, filtered)
+        }
+    }
+
+    private func popoverSectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+    }
+
+    private func popoverModelRow(_ model: AIModel, showProvider: Bool) -> some View {
+        PopoverModelRowButton(
+            model: model,
+            isSelected: model.id == settingsStore.selectedModelID,
+            showProvider: showProvider
+        ) {
+            settingsStore.selectedModelID = model.id
+            showPopover = false
+            searchText = ""
         }
     }
 
@@ -785,6 +854,50 @@ private struct ModelPicker: View {
             return "No model"
         }
         return "Choose model"
+    }
+}
+
+private struct PopoverModelRowButton: View {
+    let model: AIModel
+    let isSelected: Bool
+    let showProvider: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                ProviderGlyph(provider: model.provider)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.displayName)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if showProvider {
+                        Text(model.provider.displayName)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.blue)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(isHovered ? 0.06 : 0))
+                    .padding(.horizontal, 4)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }
 

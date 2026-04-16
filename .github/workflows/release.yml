@@ -1,0 +1,90 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version
+        id: version
+        run: |
+          # Get latest version tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+          echo "Previous tag: $LATEST_TAG"
+
+          # Parse current version
+          CURRENT="${LATEST_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          # Analyze commits since last tag for conventional commit prefixes
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" "$LATEST_TAG..HEAD")
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "No new commits. Skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Determine bump type from commit messages
+          BUMP="patch"
+          while IFS= read -r msg; do
+            if echo "$msg" | grep -qiE '^feat(\(.+\))?!:|^fix(\(.+\))?!:|^[a-z]+(\(.+\))?!:|BREAKING CHANGE'; then
+              BUMP="major"
+              break
+            elif echo "$msg" | grep -qiE '^feat(\(.+\))?:'; then
+              BUMP="minor"
+            fi
+          done <<< "$COMMITS"
+
+          # Bump version
+          case $BUMP in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Bump: $BUMP -> v$NEW_VERSION"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Build release
+        if: steps.version.outputs.skip != 'true'
+        run: make release VERSION=${{ steps.version.outputs.version }}
+
+      - name: Sign (ad-hoc)
+        if: steps.version.outputs.skip != 'true'
+        run: make sign VERSION=${{ steps.version.outputs.version }}
+
+      - name: Create DMG
+        if: steps.version.outputs.skip != 'true'
+        run: make dmg VERSION=${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: AI Mail Composer ${{ steps.version.outputs.tag }}
+          files: build/AIMailComposer.dmg
+          make_latest: true
+          generate_release_notes: true

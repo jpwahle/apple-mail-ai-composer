@@ -76,7 +76,8 @@ final class ComposerViewModel: ObservableObject {
 
         let (systemPrompt, userMessage) = SystemPrompt.compose(
             context: context,
-            userThoughts: trimmed
+            userThoughts: trimmed,
+            customInstructions: settingsStore.customWritingInstructions
         )
 
         streamTask = Task { [weak self] in

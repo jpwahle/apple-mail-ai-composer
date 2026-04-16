@@ -1,7 +1,7 @@
 APP_NAME = AI Mail Composer
 BUNDLE_NAME = AIMailComposer
 BUNDLE_ID = com.aiMailComposer
-VERSION = 1.0.0
+VERSION = 0.1.0
 BUILD_DIR = build
 APP_BUNDLE = $(BUILD_DIR)/$(APP_NAME).app
 EXECUTABLE = $(APP_BUNDLE)/Contents/MacOS/$(BUNDLE_NAME)
@@ -23,6 +23,7 @@ build:
 		-derivedDataPath $(BUILD_DIR)/DerivedData \
 		build
 	@cp $(BUILD_DIR)/DerivedData/Build/Products/Debug/$(BUNDLE_NAME) "$(EXECUTABLE)"
+	@cp AIMailComposer/Resources/AppIcon.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp AIMailComposer/App/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
 	@# Merge additional keys into Info.plist
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $(BUNDLE_ID)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
@@ -45,6 +46,7 @@ release:
 		-derivedDataPath $(BUILD_DIR)/DerivedData \
 		build
 	@cp $(BUILD_DIR)/DerivedData/Build/Products/Release/$(BUNDLE_NAME) "$(EXECUTABLE)"
+	@cp AIMailComposer/Resources/AppIcon.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp AIMailComposer/App/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $(BUNDLE_ID)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $(BUNDLE_NAME)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true

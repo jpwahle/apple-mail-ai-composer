@@ -6,7 +6,17 @@ final class SettingsStore: ObservableObject {
     private let keychainService = KeychainService()
 
     @AppStorage("selectedModelID") var selectedModelID: String = ""
-    @AppStorage("launchAtLogin") var launchAtLogin: Bool = false
+    @AppStorage("customWritingInstructions") var customWritingInstructions: String = ""
+    @AppStorage("hotkeyKeyCode") var hotkeyKeyCode: Int = 0x04    // kVK_ANSI_H
+    @AppStorage("hotkeyModifiers") var hotkeyModifiers: Int = 0x0800 // optionKey
+
+    static let hotkeyDidChange = Notification.Name("hotkeyDidChange")
+
+    func setHotkey(keyCode: Int, modifiers: Int) {
+        hotkeyKeyCode = keyCode
+        hotkeyModifiers = modifiers
+        NotificationCenter.default.post(name: Self.hotkeyDidChange, object: nil)
+    }
 
     @Published var anthropicModels: [AIModel] = []
     @Published var openaiModels: [AIModel] = []
@@ -20,6 +30,7 @@ final class SettingsStore: ObservableObject {
     @Published var openaiFetchError: String?
     @Published var geminiFetchError: String?
     @Published var openrouterFetchError: String?
+    @Published var trendingModels: [TrendingModel] = []
 
     var allModels: [AIModel] {
         anthropicModels + openaiModels + geminiModels + openrouterModels
@@ -48,11 +59,46 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    /// A handful of the newest flagship models across all providers. Used as
-    /// the "Popular" section at the top of the picker.
+    /// The most popular models across all providers. Uses trending data from
+    /// OpenRouter's public API so the list stays current without hardcoded
+    /// model names. Falls back to a recency-based heuristic when trending
+    /// data isn't available.
     var popularModels: [AIModel] {
-        // Take the top 3 newest from each provider, then re-sort by recency
-        // so the absolute newest lead.
+        if !trendingModels.isEmpty {
+            var popular: [AIModel] = []
+            for entry in trendingModels {
+                var match: AIModel?
+
+                // Try direct-API models for the entry's provider first
+                if let provider = entry.provider {
+                    let providerModels: [AIModel]
+                    switch provider {
+                    case .anthropic:  providerModels = anthropicModels
+                    case .openai:     providerModels = openaiModels
+                    case .gemini:     providerModels = geminiModels
+                    case .openrouter: providerModels = openrouterModels
+                    }
+                    match = providerModels.first {
+                        ModelFetcher.modelIDMatchesSlug($0.id, slug: entry.slug)
+                    }
+                }
+
+                // Fall back to OpenRouter models by full ID
+                if match == nil {
+                    match = openrouterModels.first {
+                        $0.id.lowercased() == entry.openRouterId.lowercased()
+                    }
+                }
+
+                if let match, !popular.contains(match) {
+                    popular.append(match)
+                }
+                if popular.count >= 5 { break }
+            }
+            if !popular.isEmpty { return popular }
+        }
+
+        // Fallback: top 3 newest from each provider, re-sorted.
         var candidates: [AIModel] = []
         for (_, provider) in sortedGroupedModels.enumerated() {
             candidates.append(contentsOf: provider.1.prefix(3))
@@ -153,6 +199,10 @@ final class SettingsStore: ObservableObject {
     }
 
     func fetchAllModels() async {
+        // Fetch trending/popular rankings from OpenRouter (public, no auth)
+        // in parallel with provider model lists.
+        async let trending = ModelFetcher.fetchTrendingModels()
+
         await withTaskGroup(of: Void.self) { group in
             for provider in AIProvider.allCases {
                 if let key = getAPIKey(for: provider), !key.isEmpty {
@@ -160,5 +210,7 @@ final class SettingsStore: ObservableObject {
                 }
             }
         }
+
+        trendingModels = await trending
     }
 }

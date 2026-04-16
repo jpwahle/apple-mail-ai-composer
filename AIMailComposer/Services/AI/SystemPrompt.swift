@@ -1,7 +1,7 @@
 import Foundation
 
 enum SystemPrompt {
-    static func compose(context: ComposerContext, userThoughts: String) -> (system: String, user: String) {
+    static func compose(context: ComposerContext, userThoughts: String, customInstructions: String = "") -> (system: String, user: String) {
         let system = """
         You are an email writing assistant. Compose the body of an email based on the \
         context from the user's open compose window and the user's thoughts about what \
@@ -71,6 +71,12 @@ enum SystemPrompt {
         userParts.append("## My thoughts for what to write")
         userParts.append(userThoughts)
 
-        return (system, userParts.joined(separator: "\n"))
+        var finalSystem = system
+        let trimmedInstructions = customInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedInstructions.isEmpty {
+            finalSystem += "\n\n## Additional instructions from the user\n" + trimmedInstructions
+        }
+
+        return (finalSystem, userParts.joined(separator: "\n"))
     }
 }

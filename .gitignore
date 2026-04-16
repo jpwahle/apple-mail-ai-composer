@@ -24,3 +24,11 @@ xcuserdata/
 .swiftpm/
 Packages/
 Package.resolved
+
+
+# Claude
+.claude
+.superpowers/
+
+# Docs
+docs/

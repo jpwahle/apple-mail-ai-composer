@@ -1,5 +1,12 @@
 import Foundation
 
+/// A model identified as popular from the OpenRouter public API.
+struct TrendingModel: Sendable {
+    let openRouterId: String   // e.g. "anthropic/claude-sonnet-4"
+    let provider: AIProvider?  // Mapped provider, nil for non-major providers
+    let slug: String           // Model name without provider prefix
+}
+
 enum ModelFetcher {
     static func fetchAnthropicModels(apiKey: String) async throws -> [AIModel] {
         let url = URL(string: "https://api.anthropic.com/v1/models?limit=100")!
@@ -124,7 +131,118 @@ enum ModelFetcher {
         }
     }
 
+    /// Fetch models ranked by popularity signals from OpenRouter's public API
+    /// (no auth needed). Returns an ordered list so the most popular/capable
+    /// models come first. This is a dynamic signal — when new flagship models
+    /// launch they appear automatically without any hardcoded lists.
+    static func fetchTrendingModels() async -> [TrendingModel] {
+        guard let url = URL(string: "https://openrouter.ai/api/v1/models") else { return [] }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: URLRequest(url: url))
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let models = json["data"] as? [[String: Any]]
+            else { return [] }
+
+            struct Scored {
+                let model: TrendingModel
+                let score: Double
+            }
+
+            var scored: [Scored] = []
+
+            for obj in models {
+                guard let id = obj["id"] as? String else { continue }
+
+                // Skip free-tier and non-text models
+                if id.hasSuffix(":free") { continue }
+                if let arch = obj["architecture"] as? [String: Any],
+                   let outputs = arch["output_modalities"] as? [String],
+                   !outputs.contains("text") { continue }
+
+                let parts = id.split(separator: "/", maxSplits: 1)
+                let providerKey = parts.count > 1 ? String(parts[0]) : nil
+                let slug = parts.count > 1 ? String(parts[1]) : id
+
+                let provider: AIProvider?
+                switch providerKey {
+                case "anthropic": provider = .anthropic
+                case "openai":    provider = .openai
+                case "google":    provider = .gemini
+                default:          provider = nil
+                }
+
+                var score: Double = 0
+
+                // Pricing signal — flagship models command higher per-token prices
+                if let pricing = obj["pricing"] as? [String: Any],
+                   let raw = pricing["prompt"] as? String,
+                   let price = Double(raw) {
+                    score += min(price * 10_000_000, 50)
+                }
+
+                // Context length — larger context = more capable
+                if let ctx = obj["context_length"] as? Int {
+                    score += Double(min(ctx, 200_000)) / 10_000
+                }
+
+                // Recency — newer models are more relevant
+                if let created = obj["created"] as? TimeInterval, created > 0 {
+                    let ageDays = (Date().timeIntervalSince1970 - created) / 86_400
+                    if ageDays < 60       { score += 25 }
+                    else if ageDays < 180 { score += 15 }
+                    else if ageDays < 365 { score += 8 }
+                }
+
+                // Skip non-chat variants entirely
+                let lower = slug.lowercased()
+                if lower.contains("embed") || lower.contains("tts") ||
+                   lower.contains("image-") || lower.contains("moderation") { continue }
+                if lower.contains("preview") || lower.contains("experimental") { score -= 8 }
+
+                let tm = TrendingModel(openRouterId: id, provider: provider, slug: slug)
+                scored.append(Scored(model: tm, score: score))
+            }
+
+            return scored
+                .sorted { $0.score > $1.score }
+                .prefix(30)
+                .map(\.model)
+        } catch {
+            return []
+        }
+    }
+
+    /// Check whether a direct-API model ID matches a trending slug from
+    /// OpenRouter. Compares canonical base forms so date stamps, `-latest`,
+    /// `-preview`, and version suffixes don't prevent a match.
+    static func modelIDMatchesSlug(_ modelId: String, slug: String) -> Bool {
+        let a = canonicalBase(modelId)
+        let b = canonicalBase(slug)
+        if a == b { return true }
+        let (shorter, longer) = a.count <= b.count ? (a, b) : (b, a)
+        guard longer.hasPrefix(shorter) else { return false }
+        if shorter.count == longer.count { return true }
+        let idx = longer.index(longer.startIndex, offsetBy: shorter.count)
+        return longer[idx] == "-"
+    }
+
     // MARK: - Helpers
+
+    private static func canonicalBase(_ id: String) -> String {
+        var s = id.lowercased()
+        for suffix in ["-latest", "-preview", "-experimental", "-exp"] {
+            if s.hasSuffix(suffix) { s = String(s.dropLast(suffix.count)); break }
+        }
+        if let r = s.range(of: #"-\d{4}-?\d{2}-?\d{2}$"#, options: .regularExpression) {
+            s = String(s[..<r.lowerBound])
+        }
+        if let r = s.range(of: #"-\d{3}$"#, options: .regularExpression) {
+            s = String(s[..<r.lowerBound])
+        }
+        return s
+    }
 
     private static func parseISO8601(_ raw: String) -> TimeInterval? {
         let iso = ISO8601DateFormatter()
