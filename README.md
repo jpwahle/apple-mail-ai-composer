@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" width="128" height="128" alt="Apple Mail AI Composer logo">
+  <img src="logo-nobg.png" width="128" height="128" alt="Apple Mail AI Composer logo">
 </p>
 
 <h1 align="center">Apple Mail AI Composer</h1>
