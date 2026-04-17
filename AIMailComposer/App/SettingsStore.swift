@@ -1,4 +1,5 @@
 import Foundation
+import ServiceManagement
 import SwiftUI
 
 @MainActor
@@ -16,6 +17,23 @@ final class SettingsStore: ObservableObject {
         hotkeyKeyCode = keyCode
         hotkeyModifiers = modifiers
         NotificationCenter.default.post(name: Self.hotkeyDidChange, object: nil)
+    }
+
+    // MARK: - Launch at Login
+
+    @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            NSLog("Failed to update launch at login: \(error.localizedDescription)")
+        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     @Published var anthropicModels: [AIModel] = []

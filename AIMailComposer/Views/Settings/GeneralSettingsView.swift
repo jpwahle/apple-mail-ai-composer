@@ -19,6 +19,8 @@ struct GeneralSettingsView: View {
                 Divider()
                 shortcutSection
                 Divider()
+                startupSection
+                Divider()
                 updateSection
             }
             .padding(20)
@@ -26,6 +28,25 @@ struct GeneralSettingsView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Startup
+
+    private var startupSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Startup")
+                .font(.system(size: 13, weight: .semibold))
+
+            Toggle(isOn: Binding(
+                get: { settingsStore.launchAtLogin },
+                set: { settingsStore.setLaunchAtLogin($0) }
+            )) {
+                Text("Launch at login")
+                    .font(.system(size: 12))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        }
     }
 
     // MARK: - How to Use

@@ -13,6 +13,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let updateChecker = UpdateChecker()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // SwiftUI's Settings scene auto-creates an empty window on launch.
+        // Close any auto-created windows before we present our own UI.
+        NSApp.windows.forEach { $0.close() }
+
         setupMenuBar()
         setupHotkey()
         observeHotkeyChanges()
