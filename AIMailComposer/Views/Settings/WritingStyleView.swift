@@ -10,28 +10,33 @@ struct WritingStyleView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            TextEditor(text: $settingsStore.customWritingInstructions)
-                .font(.body)
-                .frame(maxHeight: .infinity)
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
-                .overlay(alignment: .topLeading) {
-                    if settingsStore.customWritingInstructions.isEmpty {
-                        Text("e.g. Be concise and friendly, use British English...")
-                            .foregroundStyle(.tertiary)
-                            .padding(.leading, 13)
-                            .padding(.top, 16)
-                            .allowsHitTesting(false)
-                    }
+            ZStack(alignment: .topLeading) {
+                if settingsStore.customWritingInstructions.isEmpty {
+                    // Matches NSTextView's default insets so it sits where
+                    // the cursor would be: ~5px lineFragmentPadding
+                    // horizontally + ~8px textContainerInset vertically.
+                    Text("e.g. Be concise and friendly, use British English...")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 5)
+                        .padding(.top, 8)
+                        .allowsHitTesting(false)
                 }
+
+                TextEditor(text: $settingsStore.customWritingInstructions)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+            }
+            .padding(4)
+            .frame(maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(nsColor: .textBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+            )
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
