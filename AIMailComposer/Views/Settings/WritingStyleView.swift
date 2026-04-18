@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct WritingStyleView: View {
     @EnvironmentObject var settingsStore: SettingsStore
@@ -12,22 +13,15 @@ struct WritingStyleView: View {
 
             ZStack(alignment: .topLeading) {
                 if settingsStore.customWritingInstructions.isEmpty {
-                    // Matches NSTextView's default insets so it sits where
-                    // the cursor would be: ~5px lineFragmentPadding
-                    // horizontally + ~8px textContainerInset vertically.
                     Text("e.g. Be concise and friendly, use British English...")
                         .font(.body)
                         .foregroundStyle(.tertiary)
-                        .padding(.leading, 5)
-                        .padding(.top, 8)
                         .allowsHitTesting(false)
                 }
 
-                TextEditor(text: $settingsStore.customWritingInstructions)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
+                PlainTextEditor(text: $settingsStore.customWritingInstructions)
             }
-            .padding(4)
+            .padding(8)
             .frame(maxHeight: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 6)
@@ -40,5 +34,61 @@ struct WritingStyleView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+// Wraps NSTextView with zeroed textContainerInset and lineFragmentPadding so
+// the caret renders at exactly (0, 0) of the view's frame. That makes the
+// placeholder overlay align by sharing the same top-leading origin instead of
+// trying to compensate for SwiftUI TextEditor's opaque internal insets.
+private struct PlainTextEditor: NSViewRepresentable {
+    @Binding var text: String
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsets()
+
+        guard let textView = scrollView.documentView as? NSTextView else {
+            return scrollView
+        }
+        textView.delegate = context.coordinator
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.drawsBackground = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        if textView.string != text {
+            textView.string = text
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: PlainTextEditor
+
+        init(_ parent: PlainTextEditor) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            parent.text = textView.string
+        }
     }
 }
