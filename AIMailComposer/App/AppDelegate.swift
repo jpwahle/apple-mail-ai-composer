@@ -132,8 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func scheduleRecurringUpdateChecks() {
         updateCheckTimer?.invalidate()
         let timer = Timer.scheduledTimer(withTimeInterval: Self.updateCheckInterval, repeats: true) { [weak self] _ in
+            guard let self else { return }
             Task { @MainActor in
-                self?.updateChecker.checkForUpdates()
+                self.updateChecker.checkForUpdates()
             }
         }
         // Default mode pauses while a menu is tracking; common keeps it firing.
