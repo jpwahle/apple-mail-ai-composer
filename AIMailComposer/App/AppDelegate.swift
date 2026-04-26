@@ -1,14 +1,24 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// How often to silently re-check GitHub for a newer release while the
+    /// app is running. The status menu surfaces an "Install Update…" entry
+    /// when one is downloaded; we never interrupt the user with a modal.
+    private static let updateCheckInterval: TimeInterval = 60 * 60 // 1 hour
+
     private var statusItem: NSStatusItem!
     private var hotkeyService: HotkeyService?
     private var panelController: ComposerPanelController?
     private var settingsWindow: NSWindow?
     private var statusMenu: NSMenu!
     private var composeMenuItem: NSMenuItem!
+    private var updateMenuItem: NSMenuItem!
+    private var updateSeparator: NSMenuItem!
+    private var updateCheckTimer: Timer?
+    private var updateStateCancellable: AnyCancellable?
     let settingsStore = SettingsStore()
     let updateChecker = UpdateChecker()
 
@@ -20,6 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         setupHotkey()
         observeHotkeyChanges()
+        observeUpdateState()
+        scheduleRecurringUpdateChecks()
         Task { await settingsStore.fetchAllModels() }
         openSettings()
         Task { updateChecker.checkForUpdates() }
@@ -37,7 +49,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
 
+        // Reserved slot for "Install Update vX.Y.Z…". We toggle visibility
+        // rather than insert/remove so the relative order stays predictable.
+        updateMenuItem = NSMenuItem(title: "", action: #selector(installUpdate), keyEquivalent: "")
+        updateMenuItem.target = self
+        updateMenuItem.isHidden = true
+        updateSeparator = NSMenuItem.separator()
+        updateSeparator.isHidden = true
+
         statusMenu = NSMenu()
+        statusMenu.addItem(updateMenuItem)
+        statusMenu.addItem(updateSeparator)
         statusMenu.addItem(composeMenuItem)
         statusMenu.addItem(NSMenuItem.separator())
         statusMenu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
@@ -103,6 +125,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyCode: UInt32(settingsStore.hotkeyKeyCode),
             modifiers: UInt32(settingsStore.hotkeyModifiers)
         )
+    }
+
+    // MARK: - Updates
+
+    private func scheduleRecurringUpdateChecks() {
+        updateCheckTimer?.invalidate()
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.updateCheckInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateChecker.checkForUpdates()
+            }
+        }
+        // Default mode pauses while a menu is tracking; common keeps it firing.
+        RunLoop.main.add(timer, forMode: .common)
+        updateCheckTimer = timer
+    }
+
+    private func observeUpdateState() {
+        updateStateCancellable = updateChecker.$state
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in
+                self?.refreshUpdateMenuItem(for: state)
+            }
+    }
+
+    private func refreshUpdateMenuItem(for state: UpdateChecker.State) {
+        let isReady: Bool
+        if case .readyToInstall = state { isReady = true } else { isReady = false }
+
+        if isReady {
+            let version = updateChecker.latestVersion ?? "new version"
+            updateMenuItem.title = "Install Update v\(version)…"
+        }
+        updateMenuItem.isHidden = !isReady
+        updateSeparator.isHidden = !isReady
+    }
+
+    @objc private func installUpdate() {
+        updateChecker.install()
     }
 
     // MARK: - Composer

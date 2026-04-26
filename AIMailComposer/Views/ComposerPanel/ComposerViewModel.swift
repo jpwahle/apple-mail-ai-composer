@@ -11,13 +11,27 @@ final class ComposerViewModel: ObservableObject {
         case error(String)
     }
 
+    /// Which kind of generation produced (or is producing) the current output.
+    /// Drives result-screen labels and what regenerate/primary action do.
+    enum Mode: Equatable {
+        case reply
+        case summarize
+    }
+
     @Published var state: State = .loadingContext
     @Published var userThoughts: String = ""
     @Published var generatedReply: String = ""
     /// True while bytes are still arriving from the model. Used by the view
     /// to show a caret animation and to gate the "Copy message" action.
     @Published var isStreaming: Bool = false
+    @Published private(set) var mode: Mode = .reply
     @Published private(set) var context: ComposerContext?
+
+    var canSummarize: Bool {
+        guard let context else { return false }
+        guard let thread = context.thread else { return false }
+        return !thread.messages.isEmpty
+    }
 
     private let settingsStore: SettingsStore
     private let onDismiss: () -> Void
@@ -62,6 +76,7 @@ final class ComposerViewModel: ObservableObject {
 
         streamTask?.cancel()
         generatedReply = ""
+        mode = .reply
         state = .generating
         isStreaming = true
 
@@ -84,6 +99,51 @@ final class ComposerViewModel: ObservableObject {
             await self?.consumeStream(client.stream(systemPrompt: systemPrompt, userMessage: userMessage))
         }
         await streamTask?.value
+    }
+
+    func summarize() async {
+        guard let context else {
+            state = .error("No compose window detected.")
+            return
+        }
+        guard canSummarize else {
+            state = .error("No thread to summarize yet.")
+            return
+        }
+
+        streamTask?.cancel()
+        generatedReply = ""
+        mode = .summarize
+        state = .generating
+        isStreaming = true
+
+        let client: AIClient
+        do {
+            client = try settingsStore.makeAIClient()
+        } catch {
+            isStreaming = false
+            state = .error(error.localizedDescription)
+            return
+        }
+
+        let (systemPrompt, userMessage) = SystemPrompt.summarize(
+            context: context,
+            customInstructions: settingsStore.customWritingInstructions
+        )
+
+        streamTask = Task { [weak self] in
+            await self?.consumeStream(client.stream(systemPrompt: systemPrompt, userMessage: userMessage))
+        }
+        await streamTask?.value
+    }
+
+    /// Re-runs whichever generation produced the current output. Lets the
+    /// "Regenerate" chip in the result view stay mode-agnostic.
+    func regenerate() async {
+        switch mode {
+        case .reply: await generate()
+        case .summarize: await summarize()
+        }
     }
 
     private func consumeStream(_ stream: AsyncThrowingStream<String, Error>) async {
@@ -128,6 +188,7 @@ final class ComposerViewModel: ObservableObject {
         streamTask?.cancel()
         streamTask = nil
         isStreaming = false
+        mode = .reply
         state = .ready
     }
 

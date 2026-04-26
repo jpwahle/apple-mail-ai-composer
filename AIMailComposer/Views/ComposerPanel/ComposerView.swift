@@ -57,19 +57,28 @@ struct ComposerView: View {
             LoadingState(label: "Reading your compose window…")
 
         case .ready:
-            ReadyState(context: viewModel.context)
+            ReadyState(
+                context: viewModel.context,
+                canSummarize: viewModel.canSummarize,
+                isBusy: viewModel.isBusy,
+                onSummarize: { Task { await viewModel.summarize() } }
+            )
 
         case .generating:
-            GeneratingState(thoughts: viewModel.userThoughts)
+            GeneratingState(
+                mode: viewModel.mode,
+                thoughts: viewModel.userThoughts
+            )
 
         case .complete:
             ReplyResultView(
                 reply: $viewModel.generatedReply,
+                mode: viewModel.mode,
                 userThoughts: viewModel.userThoughts,
                 isStreaming: viewModel.isStreaming,
                 onCopy: { viewModel.copyToClipboard() },
                 onInsert: { Task { await viewModel.insertIntoMail() } },
-                onRegenerate: { Task { await viewModel.generate() } },
+                onRegenerate: { Task { await viewModel.regenerate() } },
                 onEdit: { viewModel.backToEditing() }
             )
 
@@ -189,19 +198,66 @@ private struct LoadingState: View {
 
 private struct ReadyState: View {
     let context: ComposerContext?
+    let canSummarize: Bool
+    let isBusy: Bool
+    let onSummarize: () -> Void
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 if let context {
                     ContextSummaryCard(context: context)
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
+                    if canSummarize {
+                        SummarizeThreadButton(action: onSummarize)
+                            .padding(.horizontal, 16)
+                            .disabled(isBusy)
+                    }
                 }
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+private struct SummarizeThreadButton: View {
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "text.alignleft")
+                    .font(.system(size: 11, weight: .semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Summarize thread")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("TL;DR of the conversation so far")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(hovering ? 0.08 : 0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -314,20 +370,28 @@ private struct ThreadMessageRow: View {
 }
 
 private struct GeneratingState: View {
+    let mode: ComposerViewModel.Mode
     let thoughts: String
     @State private var pulse = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            UserBubble(text: thoughts)
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
+            switch mode {
+            case .reply:
+                UserBubble(text: thoughts)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+            case .summarize:
+                SummarizeIntent()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+            }
 
             HStack(spacing: 10) {
                 ShimmerDot(delay: 0.0)
                 ShimmerDot(delay: 0.15)
                 ShimmerDot(delay: 0.30)
-                Text("Drafting reply…")
+                Text(mode == .summarize ? "Summarizing thread…" : "Drafting reply…")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -337,6 +401,26 @@ private struct GeneratingState: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SummarizeIntent: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "text.alignleft")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text("TL;DR of this thread")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
     }
 }
 
@@ -381,6 +465,7 @@ private struct UserBubble: View {
 
 private struct ReplyResultView: View {
     @Binding var reply: String
+    let mode: ComposerViewModel.Mode
     let userThoughts: String
     let isStreaming: Bool
     let onCopy: () -> Void
@@ -393,7 +478,12 @@ private struct ReplyResultView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                UserBubble(text: userThoughts)
+                switch mode {
+                case .reply:
+                    UserBubble(text: userThoughts)
+                case .summarize:
+                    SummarizeIntent()
+                }
 
                 HStack(alignment: .top, spacing: 8) {
                     Circle()
@@ -428,15 +518,19 @@ private struct ReplyResultView: View {
                                 }
                             )
                             .disabled(isStreaming)
-                            ActionChip(icon: "arrow.uturn.backward", label: "Edit", action: onEdit)
+                            ActionChip(
+                                icon: "arrow.uturn.backward",
+                                label: mode == .summarize ? "Back" : "Edit",
+                                action: onEdit
+                            )
                                 .disabled(isStreaming)
                             ActionChip(icon: "arrow.clockwise", label: "Regenerate", action: onRegenerate)
                                 .disabled(isStreaming)
                             Spacer()
                             PrimaryActionButton(
                                 icon: "doc.on.doc",
-                                label: "Copy message",
-                                action: onInsert
+                                label: mode == .summarize ? "Copy summary" : "Copy message",
+                                action: mode == .summarize ? primaryCopyAction : onInsert
                             )
                             .keyboardShortcut(.return, modifiers: .command)
                             .disabled(isStreaming)
@@ -447,6 +541,14 @@ private struct ReplyResultView: View {
                 }
             }
             .padding(16)
+        }
+    }
+
+    private func primaryCopyAction() {
+        onCopy()
+        didCopy = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            didCopy = false
         }
     }
 }

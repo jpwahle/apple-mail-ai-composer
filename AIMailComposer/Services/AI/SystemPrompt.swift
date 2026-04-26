@@ -79,4 +79,57 @@ enum SystemPrompt {
 
         return (finalSystem, userParts.joined(separator: "\n"))
     }
+
+    /// Builds prompts for a TL;DR-style summary of the current email thread.
+    /// The summary is meant to stand on its own — never inserted back into Mail.
+    static func summarize(context: ComposerContext, customInstructions: String = "") -> (system: String, user: String) {
+        let system = """
+        You are an email summarizer. Produce a tight TL;DR of the email thread for \
+        someone who has not read it.
+
+        ## Rules
+        - Output ONLY the summary. No preamble, no explanations, no markdown headers.
+        - Start with a single sentence that captures the gist.
+        - Then list key points as plain-text bullets prefixed with "• ".
+        - 3 to 7 bullets. Use fewer if the thread genuinely has fewer distinct points.
+        - Each bullet: one clear, complete idea, max 20 words.
+        - Capture decisions, action items, deadlines, open questions, and anything \
+        the reader needs to do or know.
+        - Name people when they matter. Identify who is asking what of whom.
+        - Prefer concrete details (dates, numbers, names) over vague summaries.
+        - If the thread is in German, write the summary in German. If English, in \
+        English. Match the language of the most recent message.
+        - No filler. Skip phrases like "this thread discusses" or "in summary". Go \
+        straight to the substance.
+        - Do not invent facts. If something is unclear in the thread, say so plainly.
+        """
+
+        var userParts: [String] = []
+
+        userParts.append("## Thread to summarize")
+        userParts.append("Subject: \(context.subject.isEmpty ? "(none)" : context.subject)")
+        if context.hasRecipients {
+            userParts.append("Recipients: \(context.recipients.joined(separator: ", "))")
+        }
+
+        if let thread = context.thread, !thread.messages.isEmpty {
+            userParts.append("")
+            userParts.append("## Messages")
+            userParts.append(thread.formatted())
+        }
+
+        if !context.currentDraft.isEmpty {
+            userParts.append("")
+            userParts.append("## Existing draft in compose window (for context only)")
+            userParts.append(context.currentDraft)
+        }
+
+        var finalSystem = system
+        let trimmedInstructions = customInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedInstructions.isEmpty {
+            finalSystem += "\n\n## Additional instructions from the user\n" + trimmedInstructions
+        }
+
+        return (finalSystem, userParts.joined(separator: "\n"))
+    }
 }

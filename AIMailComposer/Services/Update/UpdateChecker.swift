@@ -112,7 +112,6 @@ final class UpdateChecker: ObservableObject {
 
             downloadedDMG = dest
             state = .readyToInstall
-            showUpdateAlert()
 
         } catch {
             state = .failed("Download failed: \(error.localizedDescription)")
@@ -208,22 +207,5 @@ final class UpdateChecker: ObservableObject {
         process.arguments = ["detach", mountPoint, "-quiet"]
         try? process.run()
         process.waitUntilExit()
-    }
-
-    // MARK: - Alert
-
-    private func showUpdateAlert() {
-        guard let version = latestVersion else { return }
-
-        let alert = NSAlert()
-        alert.messageText = "Update Available"
-        alert.informativeText = "Apple Mail AI Plugin v\(version) is ready. Relaunch to update?"
-        alert.addButton(withTitle: "Relaunch Now")
-        alert.addButton(withTitle: "Later")
-        alert.alertStyle = .informational
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            install()
-        }
     }
 }
