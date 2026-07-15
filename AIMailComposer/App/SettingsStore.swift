@@ -36,7 +36,7 @@ final class SettingsStore: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    @AppStorage("localAIBaseURL") var localAIBaseURL: String = "http://localhost:1234"
+    @AppStorage("localAIBaseURL") var localAIBaseURL: String = ""
 
     @Published var anthropicModels: [AIModel] = []
     @Published var openaiModels: [AIModel] = []

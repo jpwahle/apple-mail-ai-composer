@@ -122,7 +122,7 @@ enum ModelFetcher {
         return modelsArray.compactMap { obj -> AIModel? in
             guard let id = obj["id"] as? String else { return nil }
             let displayName = (obj["name"] as? String) ?? id
-            let created = obj["created"] as? TimeInterval
+            let created = (obj["created"] as? Double) ?? (obj["created"] as? Int).map(Double.init)
             return AIModel(id: id, displayName: displayName, provider: .local, createdAt: created)
         }
     }

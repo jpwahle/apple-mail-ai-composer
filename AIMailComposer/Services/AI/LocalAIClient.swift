@@ -40,7 +40,13 @@ final class LocalAIClient: AIClient {
                     }
                     guard http.statusCode == 200 else {
                         var errorBody = ""
-                        for try await line in bytes.lines { errorBody += line + "\n" }
+                        for try await line in bytes.lines {
+                            errorBody += line + "\n"
+                            if errorBody.count > 1024 {
+                                errorBody += "...[truncated]"
+                                break
+                            }
+                        }
                         throw AIClientError.requestFailed("HTTP \(http.statusCode): \(errorBody)")
                     }
 

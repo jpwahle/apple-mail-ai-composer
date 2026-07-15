@@ -247,9 +247,18 @@ struct APIKeySettingsView: View {
             try applyKey(trimmedOpenRouter, for: .openrouter) { settingsStore.openrouterModels = [] }
 
             if trimmedLocalURL.isEmpty {
+                settingsStore.localAIBaseURL = ""
                 settingsStore.localModels = []
             } else {
-                settingsStore.localAIBaseURL = trimmedLocalURL
+                var sanitizedURL = trimmedLocalURL
+                if !sanitizedURL.lowercased().hasPrefix("http://") && !sanitizedURL.lowercased().hasPrefix("https://") {
+                    sanitizedURL = "http://" + sanitizedURL
+                }
+                while sanitizedURL.hasSuffix("/") {
+                    sanitizedURL.removeLast()
+                }
+                settingsStore.localAIBaseURL = sanitizedURL
+                localBaseURL = sanitizedURL
             }
 
             isError = false
