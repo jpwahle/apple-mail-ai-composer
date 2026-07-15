@@ -6,6 +6,7 @@ struct APIKeySettingsView: View {
     @State private var openaiKey: String = ""
     @State private var geminiKey: String = ""
     @State private var openrouterKey: String = ""
+    @State private var localBaseURL: String = ""
     @State private var statusMessage: String = ""
     @State private var isError: Bool = false
     @State private var modelSearchText: String = ""
@@ -35,6 +36,15 @@ struct APIKeySettingsView: View {
                 keyField("OpenRouter", placeholder: "sk-or-v1-…", text: $openrouterKey)
                     .onAppear { openrouterKey = settingsStore.getAPIKey(for: .openrouter) ?? "" }
                 Text("One key for every model on openrouter.ai")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 2)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                keyField("Local AI", placeholder: "http://localhost:1234", text: $localBaseURL)
+                    .onAppear { localBaseURL = settingsStore.localAIBaseURL }
+                Text("LM Studio or Ollama. Enter the server's base URL.")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 2)
@@ -74,6 +84,7 @@ struct APIKeySettingsView: View {
             || settingsStore.isFetchingOpenAI
             || settingsStore.isFetchingGemini
             || settingsStore.isFetchingOpenRouter
+            || settingsStore.isFetchingLocal
     }
 
     @ViewBuilder
@@ -209,6 +220,9 @@ struct APIKeySettingsView: View {
             if let err = settingsStore.openrouterFetchError {
                 Text("OpenRouter: \(err)").font(.caption2).foregroundStyle(.red)
             }
+            if let err = settingsStore.localFetchError {
+                Text("Local AI: \(err)").font(.caption2).foregroundStyle(.red)
+            }
         }
     }
 
@@ -219,16 +233,24 @@ struct APIKeySettingsView: View {
         let trimmedOpenAI = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedGemini = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedOpenRouter = openrouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLocalURL = localBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         anthropicKey = trimmedAnthropic
         openaiKey = trimmedOpenAI
         geminiKey = trimmedGemini
         openrouterKey = trimmedOpenRouter
+        localBaseURL = trimmedLocalURL
 
         do {
             try applyKey(trimmedAnthropic, for: .anthropic) { settingsStore.anthropicModels = [] }
             try applyKey(trimmedOpenAI, for: .openai) { settingsStore.openaiModels = [] }
             try applyKey(trimmedGemini, for: .gemini) { settingsStore.geminiModels = [] }
             try applyKey(trimmedOpenRouter, for: .openrouter) { settingsStore.openrouterModels = [] }
+
+            if trimmedLocalURL.isEmpty {
+                settingsStore.localModels = []
+            } else {
+                settingsStore.localAIBaseURL = trimmedLocalURL
+            }
 
             isError = false
             statusMessage = "Saved. Fetching models…"
@@ -239,6 +261,7 @@ struct APIKeySettingsView: View {
                     settingsStore.openaiFetchError,
                     settingsStore.geminiFetchError,
                     settingsStore.openrouterFetchError,
+                    settingsStore.localFetchError,
                 ].compactMap { $0 }
                 if errors.isEmpty {
                     statusMessage = "Saved. \(settingsStore.allModels.count) models loaded."

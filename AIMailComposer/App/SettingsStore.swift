@@ -36,22 +36,27 @@ final class SettingsStore: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
+    @AppStorage("localAIBaseURL") var localAIBaseURL: String = "http://localhost:1234"
+
     @Published var anthropicModels: [AIModel] = []
     @Published var openaiModels: [AIModel] = []
     @Published var geminiModels: [AIModel] = []
     @Published var openrouterModels: [AIModel] = []
+    @Published var localModels: [AIModel] = []
     @Published var isFetchingAnthropic = false
     @Published var isFetchingOpenAI = false
     @Published var isFetchingGemini = false
     @Published var isFetchingOpenRouter = false
+    @Published var isFetchingLocal = false
     @Published var anthropicFetchError: String?
     @Published var openaiFetchError: String?
     @Published var geminiFetchError: String?
     @Published var openrouterFetchError: String?
+    @Published var localFetchError: String?
     @Published var trendingModels: [TrendingModel] = []
 
     var allModels: [AIModel] {
-        anthropicModels + openaiModels + geminiModels + openrouterModels
+        anthropicModels + openaiModels + geminiModels + openrouterModels + localModels
     }
 
     /// Models grouped by provider. Within each group, sorted by release date
@@ -65,6 +70,7 @@ final class SettingsStore: ObservableObject {
             case .openai: models = openaiModels
             case .gemini: models = geminiModels
             case .openrouter: models = openrouterModels
+            case .local: models = localModels
             }
             guard !models.isEmpty else { return nil }
             let sorted = models.sorted { lhs, rhs in
@@ -95,6 +101,7 @@ final class SettingsStore: ObservableObject {
                     case .openai:     providerModels = openaiModels
                     case .gemini:     providerModels = geminiModels
                     case .openrouter: providerModels = openrouterModels
+                    case .local:      providerModels = localModels
                     }
                     match = providerModels.first {
                         ModelFetcher.modelIDMatchesSlug($0.id, slug: entry.slug)
@@ -163,56 +170,73 @@ final class SettingsStore: ObservableObject {
         guard let model = selectedModel else {
             throw AIClientError.requestFailed("No model selected. Open Settings and pick a model.")
         }
-        return try AIClientFactory.client(for: model, keychainService: keychainService)
+        return try AIClientFactory.client(for: model, keychainService: keychainService, localAIBaseURL: localAIBaseURL)
     }
 
     func fetchModels(for provider: AIProvider) async {
-        guard let apiKey = getAPIKey(for: provider), !apiKey.isEmpty else { return }
-
         switch provider {
-        case .anthropic:
-            isFetchingAnthropic = true
-            anthropicFetchError = nil
+        case .local:
+            isFetchingLocal = true
+            localFetchError = nil
             do {
-                anthropicModels = try await ModelFetcher.fetchAnthropicModels(apiKey: apiKey)
+                localModels = try await ModelFetcher.fetchLocalAIModels(baseURL: localAIBaseURL)
                 ensureDefaultSelection()
             } catch {
-                anthropicFetchError = error.localizedDescription
+                localFetchError = error.localizedDescription
             }
-            isFetchingAnthropic = false
+            isFetchingLocal = false
 
-        case .openai:
-            isFetchingOpenAI = true
-            openaiFetchError = nil
-            do {
-                openaiModels = try await ModelFetcher.fetchOpenAIModels(apiKey: apiKey)
-                ensureDefaultSelection()
-            } catch {
-                openaiFetchError = error.localizedDescription
-            }
-            isFetchingOpenAI = false
+        default:
+            guard let apiKey = getAPIKey(for: provider), !apiKey.isEmpty else { return }
 
-        case .gemini:
-            isFetchingGemini = true
-            geminiFetchError = nil
-            do {
-                geminiModels = try await ModelFetcher.fetchGeminiModels(apiKey: apiKey)
-                ensureDefaultSelection()
-            } catch {
-                geminiFetchError = error.localizedDescription
-            }
-            isFetchingGemini = false
+            switch provider {
+            case .anthropic:
+                isFetchingAnthropic = true
+                anthropicFetchError = nil
+                do {
+                    anthropicModels = try await ModelFetcher.fetchAnthropicModels(apiKey: apiKey)
+                    ensureDefaultSelection()
+                } catch {
+                    anthropicFetchError = error.localizedDescription
+                }
+                isFetchingAnthropic = false
 
-        case .openrouter:
-            isFetchingOpenRouter = true
-            openrouterFetchError = nil
-            do {
-                openrouterModels = try await ModelFetcher.fetchOpenRouterModels(apiKey: apiKey)
-                ensureDefaultSelection()
-            } catch {
-                openrouterFetchError = error.localizedDescription
+            case .openai:
+                isFetchingOpenAI = true
+                openaiFetchError = nil
+                do {
+                    openaiModels = try await ModelFetcher.fetchOpenAIModels(apiKey: apiKey)
+                    ensureDefaultSelection()
+                } catch {
+                    openaiFetchError = error.localizedDescription
+                }
+                isFetchingOpenAI = false
+
+            case .gemini:
+                isFetchingGemini = true
+                geminiFetchError = nil
+                do {
+                    geminiModels = try await ModelFetcher.fetchGeminiModels(apiKey: apiKey)
+                    ensureDefaultSelection()
+                } catch {
+                    geminiFetchError = error.localizedDescription
+                }
+                isFetchingGemini = false
+
+            case .openrouter:
+                isFetchingOpenRouter = true
+                openrouterFetchError = nil
+                do {
+                    openrouterModels = try await ModelFetcher.fetchOpenRouterModels(apiKey: apiKey)
+                    ensureDefaultSelection()
+                } catch {
+                    openrouterFetchError = error.localizedDescription
+                }
+                isFetchingOpenRouter = false
+
+            case .local:
+                break // handled above
             }
-            isFetchingOpenRouter = false
         }
     }
 
@@ -223,7 +247,12 @@ final class SettingsStore: ObservableObject {
 
         await withTaskGroup(of: Void.self) { group in
             for provider in AIProvider.allCases {
-                if let key = getAPIKey(for: provider), !key.isEmpty {
+                if provider == .local {
+                    // Local AI needs no API key — always attempt if a URL is set.
+                    if !localAIBaseURL.isEmpty {
+                        group.addTask { await self.fetchModels(for: .local) }
+                    }
+                } else if let key = getAPIKey(for: provider), !key.isEmpty {
                     group.addTask { await self.fetchModels(for: provider) }
                 }
             }

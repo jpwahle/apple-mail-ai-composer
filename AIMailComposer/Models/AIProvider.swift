@@ -5,6 +5,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case openai
     case gemini
     case openrouter
+    case local
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .openai: return "OpenAI"
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
+        case .local: return "Local AI"
         }
     }
 
@@ -24,6 +26,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .openai: return "O"
         case .gemini: return "G"
         case .openrouter: return "R"
+        case .local: return "L"
         }
     }
 }
