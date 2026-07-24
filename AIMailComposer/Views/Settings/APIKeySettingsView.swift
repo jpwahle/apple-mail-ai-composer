@@ -249,6 +249,7 @@ struct APIKeySettingsView: View {
             if trimmedLocalURL.isEmpty {
                 settingsStore.localAIBaseURL = ""
                 settingsStore.localModels = []
+                settingsStore.localFetchError = nil
             } else {
                 var sanitizedURL = trimmedLocalURL
                 if !sanitizedURL.lowercased().hasPrefix("http://") && !sanitizedURL.lowercased().hasPrefix("https://") {
