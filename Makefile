@@ -36,16 +36,21 @@ build:
 	@/usr/libexec/PlistBuddy -c "Add :NSPrincipalClass string NSApplication" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
 	@echo "\n✅ Built: $(APP_BUNDLE)"
 
-# Release build (optimized)
+# Release build (optimized, universal: arm64 + x86_64)
 release:
 	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
 	@mkdir -p "$(APP_BUNDLE)/Contents/Resources"
 	xcodebuild -scheme $(BUNDLE_NAME) \
 		-configuration Release \
-		-destination 'platform=macOS' \
+		-destination 'generic/platform=macOS' \
 		-derivedDataPath $(BUILD_DIR)/DerivedData \
+		ARCHS="arm64 x86_64" \
+		ONLY_ACTIVE_ARCH=NO \
 		build
 	@cp $(BUILD_DIR)/DerivedData/Build/Products/Release/$(BUNDLE_NAME) "$(EXECUTABLE)"
+	@lipo "$(EXECUTABLE)" -verify_arch arm64 x86_64 || \
+		{ echo "❌ Expected universal binary, got: $$(lipo -archs "$(EXECUTABLE)")"; exit 1; }
+	@echo "Architectures: $$(lipo -archs "$(EXECUTABLE)")"
 	@cp AIMailComposer/Resources/AppIcon.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp AIMailComposer/App/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $(BUNDLE_ID)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true

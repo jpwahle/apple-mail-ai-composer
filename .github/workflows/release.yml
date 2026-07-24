@@ -121,11 +121,13 @@ jobs:
             TEAM_ID="$APPLE_TEAM_ID" \
             KEYCHAIN_PROFILE=AC_PASSWORD
 
-      - name: Verify Gatekeeper acceptance
+      - name: Verify Gatekeeper acceptance and universal binary
         if: steps.version.outputs.skip != 'true'
         run: |
           spctl -a -vvv -t install "build/Apple Mail AI Plugin.app"
           spctl -a -vvv -t open --context context:primary-signature build/AIMailComposer.dmg
+          lipo "build/Apple Mail AI Plugin.app/Contents/MacOS/AIMailComposer" -verify_arch arm64 x86_64
+          echo "Architectures: $(lipo -archs "build/Apple Mail AI Plugin.app/Contents/MacOS/AIMailComposer")"
 
       - name: Clean up keychain
         if: always() && steps.version.outputs.skip != 'true'
