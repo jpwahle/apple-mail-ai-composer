@@ -8,5 +8,15 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Apple Mail AI Plugin needs access to Mail to read email threads and insert composed replies.</string>
+	<!-- Allow the Local AI provider (LM Studio / Ollama) to reach a loopback or
+	     .local server over cleartext HTTP. This exempts localhost / unqualified
+	     hostnames from App Transport Security; numeric IPs are already exempt.
+	     It deliberately does NOT enable NSAllowsArbitraryLoads, so ATS still
+	     forces TLS for any remote (public-hostname) endpoint. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

@@ -67,6 +67,9 @@ extension AIModel {
             if id.contains(":free") { score -= 40 }
             if id.contains("preview") || id.contains("experimental") { score -= 10 }
             if id.contains("embedding") || id.contains("audio") { score -= 60 }
+
+        case .local:
+            break // no scoring heuristics for user-loaded local models
         }
 
         score -= min(id.count, 60) / 10

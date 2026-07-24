@@ -1,7 +1,11 @@
 import Foundation
 
 enum AIClientFactory {
-    static func client(for model: AIModel, keychainService: KeychainService) throws -> AIClient {
+    static func client(
+        for model: AIModel,
+        keychainService: KeychainService,
+        localAIBaseURL: String = "http://localhost:1234"
+    ) throws -> AIClient {
         switch model.provider {
         case .anthropic:
             guard let key = keychainService.getKey(for: .anthropic), !key.isEmpty else {
@@ -23,6 +27,8 @@ enum AIClientFactory {
                 throw AIClientError.missingAPIKey(.openrouter)
             }
             return OpenRouterClient(apiKey: key, model: model.id)
+        case .local:
+            return LocalAIClient(baseURL: localAIBaseURL, model: model.id)
         }
     }
 }

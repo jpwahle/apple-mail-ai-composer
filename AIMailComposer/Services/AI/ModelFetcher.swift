@@ -99,6 +99,34 @@ enum ModelFetcher {
         }
     }
 
+    static func fetchLocalAIModels(baseURL: String) async throws -> [AIModel] {
+        let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        guard let url = URL(string: "\(base)/v1/models") else {
+            throw AIClientError.requestFailed("Invalid Local AI base URL: \(baseURL)")
+        }
+        let request = URLRequest(url: url)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw AIClientError.requestFailed("Failed to fetch local models: \(body)")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let modelsArray = json["data"] as? [[String: Any]]
+        else {
+            throw AIClientError.invalidResponse("Could not parse local models response")
+        }
+
+        return modelsArray.compactMap { obj -> AIModel? in
+            guard let id = obj["id"] as? String else { return nil }
+            let displayName = (obj["name"] as? String) ?? id
+            let created = (obj["created"] as? Double) ?? (obj["created"] as? Int).map(Double.init)
+            return AIModel(id: id, displayName: displayName, provider: .local, createdAt: created)
+        }
+    }
+
     static func fetchOpenRouterModels(apiKey: String) async throws -> [AIModel] {
         let url = URL(string: "https://openrouter.ai/api/v1/models")!
         var request = URLRequest(url: url)
