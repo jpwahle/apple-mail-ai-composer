@@ -8,7 +8,7 @@
 <h1 align="center">Apple Mail AI Plugin</h1>
 
 <p align="center">
-  The Apple Mail AI Plugin is a native macOS menu bar app that uses AI (Claude, GPT, Gemini) to help you write email replies in Apple Mail.
+  The missing AI agent for Apple Mail. Apple Mail AI Plugin is a native macOS menu bar app that uses AI (Claude, GPT, Gemini) to help you write email replies in Apple Mail.
 </p>
 
 <p align="center">
