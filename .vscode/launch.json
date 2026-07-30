@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-mail-ai-plugin}",
+            "name": "Debug AIMailComposer",
+            "target": "AIMailComposer",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug AIMailComposer"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:apple-mail-ai-plugin}",
+            "name": "Release AIMailComposer",
+            "target": "AIMailComposer",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release AIMailComposer"
+        }
+    ]
+}

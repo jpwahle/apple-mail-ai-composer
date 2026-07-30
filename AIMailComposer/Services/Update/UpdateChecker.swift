@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Security
 
 @MainActor
 final class UpdateChecker: ObservableObject {
@@ -155,15 +156,42 @@ final class UpdateChecker: ObservableObject {
                     return
                 }
 
-                // Find .app inside mount
-                let contents = try FileManager.default.contentsOfDirectory(atPath: mountPoint)
-                guard let appName = contents.first(where: { $0.hasSuffix(".app") }) else {
-                    await MainActor.run { self.state = .failed("No .app found in DMG.") }
+                // Accept exactly one real app bundle from the read-only image.
+                let mountURL = URL(fileURLWithPath: mountPoint, isDirectory: true)
+                let contents = try FileManager.default.contentsOfDirectory(
+                    at: mountURL,
+                    includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                    options: .skipsHiddenFiles
+                )
+                let appURLs = try contents.filter { url in
+                    guard url.pathExtension.lowercased() == "app" else { return false }
+                    let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                    return values.isDirectory == true && values.isSymbolicLink != true
+                }
+                guard appURLs.count == 1, let sourceURL = appURLs.first else {
+                    await MainActor.run {
+                        self.state = .failed("Update DMG must contain exactly one .app.")
+                    }
                     self.detach(mountPoint)
                     return
                 }
 
-                let source = "\(mountPoint)/\(appName)"
+                // Verify every architecture and nested code, and require the update
+                // to have the same designated signing identity as this running app.
+                do {
+                    try Self.verifyUpdateSignature(at: sourceURL)
+                } catch {
+                    NSLog("Update signature verification failed: %@", error.localizedDescription)
+                    await MainActor.run {
+                        self.state = .failed(
+                            "The update could not be verified. The existing app was not changed."
+                        )
+                    }
+                    self.detach(mountPoint)
+                    return
+                }
+
+                let source = sourceURL.path
                 let dest = appBundlePath
 
                 // Replace app via rsync
@@ -196,6 +224,95 @@ final class UpdateChecker: ObservableObject {
                 await MainActor.run {
                     self.state = .failed("Install error: \(error.localizedDescription)")
                 }
+            }
+        }
+    }
+
+    /// Performs the Security framework equivalent of
+    /// `codesign --verify --deep --strict`, then checks the candidate against
+    /// the running app's designated requirement (bundle identity + signing team).
+    private nonisolated static func verifyUpdateSignature(at appURL: URL) throws {
+        let defaultFlags = SecCSFlags(rawValue: 0)
+
+        var runningCode: SecCode?
+        try checkSecurityStatus(
+            SecCodeCopySelf(defaultFlags, &runningCode),
+            operation: "inspect the running app"
+        )
+        guard let runningCode else {
+            throw SignatureVerificationError.missingSecurityObject("running code")
+        }
+
+        var runningStaticCode: SecStaticCode?
+        try checkSecurityStatus(
+            SecCodeCopyStaticCode(runningCode, defaultFlags, &runningStaticCode),
+            operation: "inspect the running app on disk"
+        )
+        guard let runningStaticCode else {
+            throw SignatureVerificationError.missingSecurityObject("running static code")
+        }
+
+        var designatedRequirement: SecRequirement?
+        try checkSecurityStatus(
+            SecCodeCopyDesignatedRequirement(
+                runningStaticCode,
+                defaultFlags,
+                &designatedRequirement
+            ),
+            operation: "read the running app's designated requirement"
+        )
+        guard let designatedRequirement else {
+            throw SignatureVerificationError.missingSecurityObject("designated requirement")
+        }
+
+        var updateCode: SecStaticCode?
+        try checkSecurityStatus(
+            SecStaticCodeCreateWithPath(
+                appURL as CFURL,
+                defaultFlags,
+                &updateCode
+            ),
+            operation: "inspect the update"
+        )
+        guard let updateCode else {
+            throw SignatureVerificationError.missingSecurityObject("update code")
+        }
+
+        let verificationFlags = SecCSFlags(
+            rawValue: kSecCSCheckAllArchitectures
+                | kSecCSCheckNestedCode
+                | kSecCSStrictValidate
+        )
+        try checkSecurityStatus(
+            SecStaticCodeCheckValidity(
+                updateCode,
+                verificationFlags,
+                designatedRequirement
+            ),
+            operation: "validate the update's code signature"
+        )
+    }
+
+    private nonisolated static func checkSecurityStatus(
+        _ status: OSStatus,
+        operation: String
+    ) throws {
+        guard status == errSecSuccess else {
+            throw SignatureVerificationError.securityFailure(operation, status)
+        }
+    }
+
+    private enum SignatureVerificationError: LocalizedError {
+        case missingSecurityObject(String)
+        case securityFailure(String, OSStatus)
+
+        var errorDescription: String? {
+            switch self {
+            case .missingSecurityObject(let object):
+                return "Security framework did not return \(object)."
+            case .securityFailure(let operation, let status):
+                let reason = SecCopyErrorMessageString(status, nil) as String? ?? "unknown error"
+                return "Could not \(operation): \(reason) (\(status))."
             }
         }
     }
