@@ -88,7 +88,10 @@ notarize: sign
 	fi
 	@echo "Creating ZIP for notarization..."
 	@ditto -c -k --keepParent "$(APP_BUNDLE)" "$(BUILD_DIR)/$(BUNDLE_NAME).zip"
-	@if [ -n "$(KEYCHAIN_PROFILE)" ]; then \
+	@if [ -n "$(KEYCHAIN_PROFILE)" ] && [ -n "$(KEYCHAIN_PATH)" ]; then \
+		xcrun notarytool submit "$(BUILD_DIR)/$(BUNDLE_NAME).zip" \
+			--keychain-profile "$(KEYCHAIN_PROFILE)" --keychain "$(KEYCHAIN_PATH)" --wait; \
+	elif [ -n "$(KEYCHAIN_PROFILE)" ]; then \
 		xcrun notarytool submit "$(BUILD_DIR)/$(BUNDLE_NAME).zip" \
 			--keychain-profile "$(KEYCHAIN_PROFILE)" --wait; \
 	elif [ -n "$(APP_PASSWORD)" ]; then \
@@ -115,7 +118,10 @@ release-dmg: notarize
 	@rm -f "$(BUILD_DIR)/$(BUNDLE_NAME).dmg"
 	./scripts/create-dmg.sh "$(APP_NAME)" "$(APP_BUNDLE)" "$(BUILD_DIR)/$(BUNDLE_NAME).dmg"
 	codesign --force --sign "$(SIGNING_IDENTITY)" "$(BUILD_DIR)/$(BUNDLE_NAME).dmg"
-	@if [ -n "$(KEYCHAIN_PROFILE)" ]; then \
+	@if [ -n "$(KEYCHAIN_PROFILE)" ] && [ -n "$(KEYCHAIN_PATH)" ]; then \
+		xcrun notarytool submit "$(BUILD_DIR)/$(BUNDLE_NAME).dmg" \
+			--keychain-profile "$(KEYCHAIN_PROFILE)" --keychain "$(KEYCHAIN_PATH)" --wait; \
+	elif [ -n "$(KEYCHAIN_PROFILE)" ]; then \
 		xcrun notarytool submit "$(BUILD_DIR)/$(BUNDLE_NAME).dmg" \
 			--keychain-profile "$(KEYCHAIN_PROFILE)" --wait; \
 	else \

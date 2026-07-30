@@ -1,8 +1,9 @@
 name: Build and Release
 
 on:
-  push:
-    branches: [main]
+  # Signing credentials must only be exposed after a deliberate release action.
+  # Configure required reviewers for the `release` environment in GitHub.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,6 +11,7 @@ permissions:
 jobs:
   build-and-release:
     runs-on: macos-14
+    environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -84,7 +86,7 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           security import "$CERT_PATH" -P "$CERTIFICATE_P12_PASSWORD" \
-            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+            -T /usr/bin/codesign -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
@@ -106,7 +108,8 @@ jobs:
           xcrun notarytool store-credentials "AC_PASSWORD" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --keychain "$RUNNER_TEMP/build.keychain-db"
 
       - name: Build, sign, notarize, and package DMG
         if: steps.version.outputs.skip != 'true'
@@ -119,7 +122,8 @@ jobs:
             SIGNING_IDENTITY="Developer ID Application: Jan Philip Wahle ($APPLE_TEAM_ID)" \
             APPLE_ID="$APPLE_ID" \
             TEAM_ID="$APPLE_TEAM_ID" \
-            KEYCHAIN_PROFILE=AC_PASSWORD
+            KEYCHAIN_PROFILE=AC_PASSWORD \
+            KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
 
       - name: Verify Gatekeeper acceptance and universal binary
         if: steps.version.outputs.skip != 'true'
