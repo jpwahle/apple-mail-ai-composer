@@ -205,14 +205,14 @@ struct APIKeySettingsView: View {
         HStack {
             Text(model.displayName)
             Spacer()
-            if model.id == settingsStore.selectedModelID {
+            if settingsStore.isSelected(model) {
                 Image(systemName: "checkmark")
                     .foregroundStyle(.blue)
             }
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            settingsStore.selectedModelID = model.id
+            settingsStore.selectModel(model)
         }
     }
 

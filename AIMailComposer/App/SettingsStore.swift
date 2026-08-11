@@ -7,6 +7,11 @@ final class SettingsStore: ObservableObject {
     private let keychainService = KeychainService()
 
     @AppStorage("selectedModelID") var selectedModelID: String = ""
+    // Disambiguates models that share an id across providers (e.g. the same
+    // `vendor/model` slug exposed by both OpenRouter and TrustedTokens).
+    // Empty for selections made before this field existed; `selectedModel`
+    // falls back to id-only matching in that case.
+    @AppStorage("selectedProviderRaw") var selectedProviderRaw: String = ""
     @AppStorage("customWritingInstructions") var customWritingInstructions: String = ""
     @AppStorage("hotkeyKeyCode") var hotkeyKeyCode: Int = 0x04    // kVK_ANSI_H
     @AppStorage("hotkeyModifiers") var hotkeyModifiers: Int = 0x0800 // optionKey
@@ -145,7 +150,37 @@ final class SettingsStore: ObservableObject {
     }
 
     var selectedModel: AIModel? {
-        allModels.first { $0.id == selectedModelID }
+        if let provider = AIProvider(rawValue: selectedProviderRaw) {
+            if let match = allModels.first(where: {
+                $0.id == selectedModelID && $0.provider == provider
+            }) {
+                return match
+            }
+        }
+        // Legacy fallback for selections stored before `selectedProviderRaw`
+        // existed. Prefer the non-OpenRouter copy when an id is ambiguous so a
+        // TrustedTokens choice doesn't silently reroute to OpenRouter.
+        let matches = allModels.filter { $0.id == selectedModelID }
+        if matches.count == 1 { return matches.first }
+        if let nonOpenRouter = matches.first(where: { $0.provider != .openrouter }) {
+            selectedProviderRaw = nonOpenRouter.provider.rawValue
+            return nonOpenRouter
+        }
+        return matches.first
+    }
+
+    /// True when `model` is the currently selected model. Provider-aware so
+    /// two providers exposing the same id don't both show a checkmark.
+    func isSelected(_ model: AIModel) -> Bool {
+        selectedModel.map { $0.id == model.id && $0.provider == model.provider } ?? false
+    }
+
+    /// Record a user model selection, persisting both the id and the provider
+    /// so the choice survives refetches even when another provider exposes the
+    /// same id.
+    func selectModel(_ model: AIModel) {
+        selectedModelID = model.id
+        selectedProviderRaw = model.provider.rawValue
     }
 
     /// Pick a sensible default model when none is set or the stored one
@@ -155,7 +190,7 @@ final class SettingsStore: ObservableObject {
             return
         }
         if let best = popularModels.first {
-            selectedModelID = best.id
+            selectModel(best)
         }
     }
 

@@ -939,10 +939,10 @@ private struct ModelPicker: View {
     private func popoverModelRow(_ model: AIModel, showProvider: Bool) -> some View {
         PopoverModelRowButton(
             model: model,
-            isSelected: model.id == settingsStore.selectedModelID,
+            isSelected: settingsStore.isSelected(model),
             showProvider: showProvider
         ) {
-            settingsStore.selectedModelID = model.id
+            settingsStore.selectModel(model)
             showPopover = false
             searchText = ""
         }
