@@ -26,10 +26,10 @@ final class ComposerViewModel: ObservableObject {
     @Published var isStreaming: Bool = false
     @Published private(set) var mode: Mode = .reply
     @Published private(set) var context: ComposerContext?
-    /// True when the AX permission prompt should be shown instead of the
-    /// normal composer UI. Set when `fetchComposerContextWithAXFallback`
-    /// throws `accessibilityDenied`.
-    @Published var needsAccessibilityPermission = false
+    /// True when the AppleScript path came back empty for a reply (the API
+    /// is lying — a reply always has recipients) and Accessibility isn't
+    /// granted. Shown as a dismissible banner, never as a blocking wall.
+    @Published var showsAccessibilityBanner = false
 
     var canSummarize: Bool {
         guard let context else { return false }
@@ -61,25 +61,34 @@ final class ComposerViewModel: ObservableObject {
 
     func activate() async {
         state = .loadingContext
-        needsAccessibilityPermission = false
+        showsAccessibilityBanner = false
         do {
             let context = try await MailBridge.fetchComposerContextWithAXFallback()
             self.context = context
+            // Sharp "AppleScript is actually broken" signal: a reply always
+            // has recipients, so a non-empty thread with no recipients means
+            // the API is lying. A blank new-message compose (thread == nil)
+            // is legitimately empty and must not trigger the banner.
+            showsAccessibilityBanner =
+                !AXPermissionChecker.isGranted()
+                && context.thread != nil
+                && context.recipients.isEmpty
             state = .ready
         } catch let error as MailBridgeError {
-            if case .accessibilityDenied = error {
-                needsAccessibilityPermission = true
-                state = .error(error.errorDescription ?? "Accessibility required")
-            } else {
-                state = .error(error.errorDescription ?? "Unknown error")
-            }
+            state = .error(error.errorDescription ?? "Unknown error")
         } catch {
             state = .error(error.localizedDescription)
         }
     }
 
-    /// Called after the user grants Accessibility permission in System
-    /// Settings and taps "Retry" in the permission view.
+    /// Dismiss the accessibility banner without granting permission. The
+    /// banner reappears on the next activation if the condition still holds.
+    func dismissAccessibilityBanner() {
+        showsAccessibilityBanner = false
+    }
+
+    /// Re-fetch context after the user grants Accessibility permission in
+    /// System Settings and taps "Retry" in the banner.
     func retryAfterAXPermission() async {
         await activate()
     }

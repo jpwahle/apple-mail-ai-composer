@@ -16,22 +16,32 @@ struct ComposerView: View {
             Divider()
                 .opacity(0.4)
 
+            if viewModel.showsAccessibilityBanner {
+                AXPermissionBanner(
+                    onGrant: {
+                        viewModel.requestAXPermission()
+                        viewModel.openAccessibilitySettings()
+                    },
+                    onRetry: { Task { await viewModel.retryAfterAXPermission() } },
+                    onDismiss: { viewModel.dismissAccessibilityBanner() }
+                )
+                Divider().opacity(0.4)
+            }
+
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if !viewModel.needsAccessibilityPermission {
-                ComposerInputBar(
-                    userThoughts: $viewModel.userThoughts,
-                    isEditable: isInputEditable,
-                    isGenerating: viewModel.isBusy,
-                    canSend: viewModel.canSend,
-                    placeholder: inputPlaceholder,
-                    settingsStore: settingsStore,
-                    shouldFocus: viewModel.state == .ready || viewModel.state == .complete,
-                    claimsReturnShortcut: viewModel.state != .complete,
-                    onSend: { Task { await viewModel.generate() } }
-                )
-            }
+            ComposerInputBar(
+                userThoughts: $viewModel.userThoughts,
+                isEditable: isInputEditable,
+                isGenerating: viewModel.isBusy,
+                canSend: viewModel.canSend,
+                placeholder: inputPlaceholder,
+                settingsStore: settingsStore,
+                shouldFocus: viewModel.state == .ready || viewModel.state == .complete,
+                claimsReturnShortcut: viewModel.state != .complete,
+                onSend: { Task { await viewModel.generate() } }
+            )
         }
         .frame(minWidth: 500, minHeight: 500)
         .background(
@@ -54,16 +64,9 @@ struct ComposerView: View {
 
     @ViewBuilder
     private var contentArea: some View {
-        if viewModel.needsAccessibilityPermission {
-            AXPermissionState(
-                onRequest: { viewModel.requestAXPermission() },
-                onOpenSettings: { viewModel.openAccessibilitySettings() },
-                onRetry: { Task { await viewModel.retryAfterAXPermission() } }
-            )
-        } else {
-            switch viewModel.state {
-            case .loadingContext:
-                LoadingState(label: "Reading your compose window…")
+        switch viewModel.state {
+        case .loadingContext:
+            LoadingState(label: "Reading your compose window…")
 
             case .ready:
                 ReadyState(
@@ -97,9 +100,7 @@ struct ComposerView: View {
                     onRetry: { Task { await viewModel.retry() } }
                 )
             }
-        }
     }
-
     // MARK: Derived state
 
     private var isInputEditable: Bool {
@@ -704,44 +705,52 @@ private struct ErrorState: View {
     }
 }
 
-// MARK: - Accessibility permission
+// MARK: - Accessibility permission banner
 
-private struct AXPermissionState: View {
-    let onRequest: () -> Void
-    let onOpenSettings: () -> Void
+private struct AXPermissionBanner: View {
+    let onGrant: () -> Void
     let onRetry: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Spacer()
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: "lock.shield.fill")
-                .font(.system(size: 28))
+                .font(.system(size: 16))
                 .foregroundStyle(.blue)
+                .padding(.top, 1)
 
-            Text("Accessibility Permission Needed")
-                .font(.system(size: 14, weight: .semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Accessibility helps read this reply")
+                    .font(.system(size: 12, weight: .semibold))
 
-            Text("macOS 26 changed how Mail exposes compose windows. "
-                 + "Accessibility access is needed to read your recipients, "
-                 + "subject, and draft directly from the compose window.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 36)
+                Text("Mail's AppleScript didn't expose the recipients or draft. "
+                     + "Grant Accessibility so the plugin can read them directly "
+                     + "from the compose window.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 8) {
-                Button("Grant Permission") {
-                    onRequest()
-                    onOpenSettings()
+                HStack(spacing: 8) {
+                    Button("Grant Accessibility", action: onGrant)
+                        .controlSize(.small)
+                    Button("Retry", action: onRetry)
+                        .controlSize(.small)
                 }
-                .controlSize(.regular)
-
-                Button("Retry") { onRetry() }
-                    .controlSize(.small)
             }
-            Spacer()
+
+            Spacer(minLength: 0)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 1)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.blue.opacity(0.06))
     }
 }
 

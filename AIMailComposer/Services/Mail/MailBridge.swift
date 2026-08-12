@@ -6,7 +6,6 @@ enum MailBridgeError: LocalizedError {
     case noComposer
     case mailNotRunning
     case parseError(String)
-    case accessibilityDenied
 
     var errorDescription: String? {
         switch self {
@@ -18,8 +17,6 @@ enum MailBridgeError: LocalizedError {
             return "Mail is not running. Open Mail and try again."
         case .parseError(let msg):
             return "Failed to parse Mail context: \(msg)"
-        case .accessibilityDenied:
-            return "Accessibility permission is needed to read your Mail compose window."
         }
     }
 }
@@ -71,8 +68,9 @@ final class MailBridge {
 
     /// Pull context, falling back to the Accessibility reader when Mail's
     /// `outgoing messages` AppleScript collection is empty (macOS 15+).
-    /// Throws `accessibilityDenied` if the AX fallback is required but
-    /// permission hasn't been granted.
+    /// Never blocks on Accessibility permission: if AX isn't granted, the
+    /// AppleScript context is returned as-is so the UI can offer a
+    /// dismissible banner instead of a permission wall.
     static func fetchComposerContextWithAXFallback() async throws -> ComposerContext {
         guard await isMailRunning() else {
             throw MailBridgeError.mailNotRunning
@@ -88,19 +86,21 @@ final class MailBridge {
 
         // If Pass 1 (outgoing messages) found nothing but Pass 2 identified
         // a compose window by name, the AppleScript path is broken (macOS
-        // 15+). Fall back to the Accessibility reader.
+        // 15+). Fall back to the Accessibility reader when permission is
+        // granted; otherwise return the context as-is.
         if context.recipients.isEmpty && context.currentDraft.isEmpty {
-            return try fetchViaAccessibility(context: context)
+            return enrichViaAccessibility(context: context)
         }
 
         return context
     }
 
-    /// Use the AX reader to populate recipients/subject/draft. If AX isn't
-    /// trusted, throw so the UI can guide the user to grant permission.
-    private static func fetchViaAccessibility(context: ComposerContext) throws -> ComposerContext {
+    /// Opportunistically enrich the context via the AX reader. If AX isn't
+    /// trusted or no compose window is found, the original context is
+    /// returned unchanged — never throws.
+    private static func enrichViaAccessibility(context: ComposerContext) -> ComposerContext {
         guard AXPermissionChecker.isGranted() else {
-            throw MailBridgeError.accessibilityDenied
+            return context
         }
 
         guard let ax = AccessibilityReader.readComposeWindow() else {
