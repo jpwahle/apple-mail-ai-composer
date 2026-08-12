@@ -58,15 +58,17 @@ extension AIModel {
             if id.range(of: #"-\d{3,}"#, options: .regularExpression) != nil { score -= 20 }
             if id.contains("preview") || id.contains("exp") { score -= 5 }
 
-        case .openrouter:
-            // OpenRouter passes slugs like `anthropic/claude-sonnet-4`. Favour
-            // flagship families, penalise free/preview/deprecated tags.
-            if id.contains("opus") || id.contains("gpt-5") || id.contains("o4") || id.contains("2.5-pro") { score += 40 }
+        case .openrouter, .trustedtokens:
+            // OpenRouter and TrustedTokens both pass slugs like
+            // `anthropic/claude-sonnet-4` / `skainet/zai-org/GLM-5.2`. Favour
+            // flagship families, penalise free/preview/deprecated tags and
+            // non-text modalities.
+            if id.contains("opus") || id.contains("gpt-5") || id.contains("o4") || id.contains("2.5-pro") || id.contains("glm-5") { score += 40 }
             else if id.contains("sonnet") || id.contains("gpt-4.1") || id.contains("gpt-4o") || id.contains("2.5-flash") || id.contains("o3") { score += 30 }
             else if id.contains("haiku") || id.contains("gpt-4-turbo") || id.contains("o1") { score += 20 }
             if id.contains(":free") { score -= 40 }
             if id.contains("preview") || id.contains("experimental") { score -= 10 }
-            if id.contains("embedding") || id.contains("audio") { score -= 60 }
+            if id.contains("embedding") || id.contains("audio") || id.contains("image") || id.contains("tts") { score -= 60 }
 
         case .local:
             break // no scoring heuristics for user-loaded local models

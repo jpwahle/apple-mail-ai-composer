@@ -7,6 +7,11 @@ final class SettingsStore: ObservableObject {
     private let keychainService = KeychainService()
 
     @AppStorage("selectedModelID") var selectedModelID: String = ""
+    // Disambiguates models that share an id across providers (e.g. the same
+    // `vendor/model` slug exposed by both OpenRouter and TrustedTokens).
+    // Empty for selections made before this field existed; `selectedModel`
+    // falls back to id-only matching in that case.
+    @AppStorage("selectedProviderRaw") var selectedProviderRaw: String = ""
     @AppStorage("customWritingInstructions") var customWritingInstructions: String = ""
     @AppStorage("hotkeyKeyCode") var hotkeyKeyCode: Int = 0x04    // kVK_ANSI_H
     @AppStorage("hotkeyModifiers") var hotkeyModifiers: Int = 0x0800 // optionKey
@@ -42,21 +47,24 @@ final class SettingsStore: ObservableObject {
     @Published var openaiModels: [AIModel] = []
     @Published var geminiModels: [AIModel] = []
     @Published var openrouterModels: [AIModel] = []
+    @Published var trustedtokensModels: [AIModel] = []
     @Published var localModels: [AIModel] = []
     @Published var isFetchingAnthropic = false
     @Published var isFetchingOpenAI = false
     @Published var isFetchingGemini = false
     @Published var isFetchingOpenRouter = false
+    @Published var isFetchingTrustedTokens = false
     @Published var isFetchingLocal = false
     @Published var anthropicFetchError: String?
     @Published var openaiFetchError: String?
     @Published var geminiFetchError: String?
     @Published var openrouterFetchError: String?
+    @Published var trustedtokensFetchError: String?
     @Published var localFetchError: String?
     @Published var trendingModels: [TrendingModel] = []
 
     var allModels: [AIModel] {
-        anthropicModels + openaiModels + geminiModels + openrouterModels + localModels
+        anthropicModels + openaiModels + geminiModels + openrouterModels + trustedtokensModels + localModels
     }
 
     /// Models grouped by provider. Within each group, sorted by release date
@@ -70,6 +78,7 @@ final class SettingsStore: ObservableObject {
             case .openai: models = openaiModels
             case .gemini: models = geminiModels
             case .openrouter: models = openrouterModels
+            case .trustedtokens: models = trustedtokensModels
             case .local: models = localModels
             }
             guard !models.isEmpty else { return nil }
@@ -97,11 +106,12 @@ final class SettingsStore: ObservableObject {
                 if let provider = entry.provider {
                     let providerModels: [AIModel]
                     switch provider {
-                    case .anthropic:  providerModels = anthropicModels
-                    case .openai:     providerModels = openaiModels
-                    case .gemini:     providerModels = geminiModels
-                    case .openrouter: providerModels = openrouterModels
-                    case .local:      providerModels = localModels
+                    case .anthropic:     providerModels = anthropicModels
+                    case .openai:        providerModels = openaiModels
+                    case .gemini:        providerModels = geminiModels
+                    case .openrouter:    providerModels = openrouterModels
+                    case .trustedtokens: providerModels = trustedtokensModels
+                    case .local:         providerModels = localModels
                     }
                     match = providerModels.first {
                         ModelFetcher.modelIDMatchesSlug($0.id, slug: entry.slug)
@@ -123,11 +133,14 @@ final class SettingsStore: ObservableObject {
             if !popular.isEmpty { return popular }
         }
 
-        // Fallback: top 3 newest from each provider, re-sorted.
+        // Fallback: top 3 newest from each provider, re-sorted. Keep one
+        // model per id — SwiftUI lists key rows on the bare id, so two
+        // providers' copies of the same id must not both appear.
         var candidates: [AIModel] = []
         for (_, provider) in sortedGroupedModels.enumerated() {
             candidates.append(contentsOf: provider.1.prefix(3))
         }
+        var seenIDs = Set<String>()
         return candidates
             .sorted { lhs, rhs in
                 let lk = lhs.sortKey
@@ -135,12 +148,41 @@ final class SettingsStore: ObservableObject {
                 if lk.0 != rk.0 { return lk.0 > rk.0 }
                 return lk.1 > rk.1
             }
+            .filter { seenIDs.insert($0.id).inserted }
             .prefix(5)
             .map { $0 }
     }
 
     var selectedModel: AIModel? {
-        allModels.first { $0.id == selectedModelID }
+        if let provider = AIProvider(rawValue: selectedProviderRaw) {
+            // A pinned provider is resolved only within that provider — a
+            // missing or still-loading model list must not reroute requests
+            // to another provider's copy of the same id.
+            return allModels.first { $0.id == selectedModelID && $0.provider == provider }
+        }
+        // Selections stored before `selectedProviderRaw` existed carry no
+        // provider; match by id in `allModels` order, mirroring the original
+        // resolution. The provider is stamped on the next explicit pick.
+        return allModels.first { $0.id == selectedModelID }
+    }
+
+    /// True when `model` is the currently selected model. Provider-aware so
+    /// two providers exposing the same id don't both show a checkmark.
+    func isSelected(_ model: AIModel) -> Bool {
+        guard model.id == selectedModelID else { return false }
+        if let provider = AIProvider(rawValue: selectedProviderRaw) {
+            return model.provider == provider
+        }
+        // Legacy id-only selection: mark the copy `selectedModel` resolves to.
+        return selectedModel?.provider == model.provider
+    }
+
+    /// Record a user model selection, persisting both the id and the provider
+    /// so the choice survives refetches even when another provider exposes the
+    /// same id.
+    func selectModel(_ model: AIModel) {
+        selectedModelID = model.id
+        selectedProviderRaw = model.provider.rawValue
     }
 
     /// Pick a sensible default model when none is set or the stored one
@@ -149,8 +191,16 @@ final class SettingsStore: ObservableObject {
         if let current = selectedModel, allModels.contains(current) {
             return
         }
+        // A pinned selection whose provider hasn't delivered any models yet
+        // (fetch pending or failed) may still resolve — don't replace it just
+        // because another provider's fetch finished first.
+        if !selectedModelID.isEmpty,
+           let provider = AIProvider(rawValue: selectedProviderRaw),
+           !allModels.contains(where: { $0.provider == provider }) {
+            return
+        }
         if let best = popularModels.first {
-            selectedModelID = best.id
+            selectModel(best)
         }
     }
 
@@ -233,6 +283,17 @@ final class SettingsStore: ObservableObject {
                     openrouterFetchError = error.localizedDescription
                 }
                 isFetchingOpenRouter = false
+
+            case .trustedtokens:
+                isFetchingTrustedTokens = true
+                trustedtokensFetchError = nil
+                do {
+                    trustedtokensModels = try await ModelFetcher.fetchTrustedTokensModels(apiKey: apiKey)
+                    ensureDefaultSelection()
+                } catch {
+                    trustedtokensFetchError = error.localizedDescription
+                }
+                isFetchingTrustedTokens = false
 
             case .local:
                 break // handled above
