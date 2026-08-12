@@ -110,9 +110,7 @@ enum AccessibilityReader {
                 acc.subject = axValue(element) ?? ""
             }
             if recipientFieldIDs.contains(id) {
-                if let addr = extractAddress(from: element), !addr.isEmpty {
-                    acc.recipients.append(addr)
-                }
+                acc.recipients.append(contentsOf: extractAddresses(from: element))
             }
         }
 
@@ -142,23 +140,49 @@ enum AccessibilityReader {
 
     // MARK: - Recipients
 
-    /// Recipient fields contain a child `AXStaticText` with the formatted
-    /// "Name <email>" string; the field's own value is just an attachment
-    /// placeholder. Walk direct children to find the static text.
-    private static func extractAddress(from field: AXUIElement) -> String? {
+    /// Extract individual recipient addresses from a recipient field.
+    ///
+    /// Each recipient token usually appears as a child `AXStaticText` with
+    /// the formatted "Name <email>" string. A typed-but-not-yet-tokenized
+    /// address may have no `AXStaticText` child yet — fall back to the
+    /// field's own value in that case. Returns one entry per address so
+    /// `recipientSummary` counts recipients, not fields.
+    private static func extractAddresses(from field: AXUIElement) -> [String] {
         var childrenRef: CFTypeRef?
         AXUIElementCopyAttributeValue(field, kAXChildrenAttribute as CFString, &childrenRef)
-        guard let children = childrenRef as? [AXUIElement] else { return nil }
+        let children = childrenRef as? [AXUIElement]
 
+        // Collect the static-text values of tokenized recipients.
         var parts: [String] = []
-        for child in children {
-            if let role = axRole(child), role == "AXStaticText" {
-                if let val = axValue(child), !val.isEmpty {
-                    parts.append(val)
+        if let children = children {
+            for child in children {
+                if let role = axRole(child), role == "AXStaticText" {
+                    if let val = axValue(child), !val.isEmpty {
+                        parts.append(val)
+                    }
                 }
             }
         }
-        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+
+        // Typed-but-not-tokenized: no token children, but the field itself
+        // carries the typed text as its value.
+        if parts.isEmpty, let val = axValue(field), !val.isEmpty {
+            parts.append(val)
+        }
+
+        // Each token is a single recipient; if a child value still holds a
+        // comma-joined list (some Mail layouts), split it so the count is
+        // per address rather than per field.
+        return parts.flatMap(splitAddresses)
+    }
+
+    /// Split a string into individual addresses on commas/semicolons,
+    /// trimming whitespace and dropping empty parts.
+    private static func splitAddresses(_ raw: String) -> [String] {
+        raw
+            .components(separatedBy: CharacterSet(charactersIn: ",;"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     // MARK: - AX helpers
