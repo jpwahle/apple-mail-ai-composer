@@ -18,10 +18,8 @@ struct ComposerView: View {
 
             if viewModel.showsAccessibilityBanner {
                 AXPermissionBanner(
-                    onGrant: {
-                        viewModel.requestAXPermission()
-                        viewModel.openAccessibilitySettings()
-                    },
+                    onGrant: { viewModel.requestAXPermission() },
+                    onOpenSettings: { viewModel.openAccessibilitySettings() },
                     onRetry: { Task { await viewModel.retryAfterAXPermission() } },
                     onDismiss: { viewModel.dismissAccessibilityBanner() }
                 )
@@ -709,6 +707,7 @@ private struct ErrorState: View {
 
 private struct AXPermissionBanner: View {
     let onGrant: () -> Void
+    let onOpenSettings: () -> Void
     let onRetry: () -> Void
     let onDismiss: () -> Void
 
@@ -732,6 +731,8 @@ private struct AXPermissionBanner: View {
 
                 HStack(spacing: 8) {
                     Button("Grant Accessibility", action: onGrant)
+                        .controlSize(.small)
+                    Button("Open Settings", action: onOpenSettings)
                         .controlSize(.small)
                     Button("Retry", action: onRetry)
                         .controlSize(.small)
