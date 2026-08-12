@@ -3,9 +3,15 @@ import Foundation
 enum MailScripts {
     /// Read context from the currently open compose window in Mail.
     ///
-    /// Implemented entirely against the Mail scripting dictionary — no System
-    /// Events / Accessibility calls — so the app only needs Automation
-    /// permission for Mail, nothing else.
+    /// This script is implemented entirely against the Mail scripting
+    /// dictionary — no System Events / Accessibility calls — so on its own
+    /// it only needs Automation permission for Mail. That guarantee no
+    /// longer holds for the app as a whole: when this path comes back
+    /// empty on recent macOS versions, `MailBridge` augments the result
+    /// via the Accessibility reader (`AccessibilityReader`). That widens
+    /// the permission footprint — AX can read every app's UI — which is a
+    /// deliberate trade-off recorded here rather than left as silent
+    /// comment rot.
     ///
     /// Detection priority:
     ///   1. `outgoing message 1` properties (best: gives recipients + draft)
