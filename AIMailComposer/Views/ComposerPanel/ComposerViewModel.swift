@@ -29,6 +29,7 @@ final class ComposerViewModel: ObservableObject {
     /// True when the AppleScript path came back empty for a reply (the API
     /// is lying — a reply always has recipients) and Accessibility isn't
     /// granted. Shown as a dismissible banner, never as a blocking wall.
+    /// Set in `activate()` after `MailBridge.fetchComposerContext()`.
     @Published var showsAccessibilityBanner = false
 
     var canSummarize: Bool {
@@ -63,7 +64,7 @@ final class ComposerViewModel: ObservableObject {
         state = .loadingContext
         showsAccessibilityBanner = false
         do {
-            let context = try await MailBridge.fetchComposerContextWithAXFallback()
+            let context = try await MailBridge.fetchComposerContext()
             self.context = context
             // Sharp "AppleScript is actually broken" signal: a reply always
             // has recipients, so a non-empty thread with no recipients means

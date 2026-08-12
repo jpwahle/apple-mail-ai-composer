@@ -50,28 +50,16 @@ final class MailBridge {
         }
     }
 
-    /// Pull context from the currently open Mail compose window.
-    /// Never reads from the message list — the compose window is the source of truth.
+    /// Pull context from the currently open Mail compose window, falling
+    /// back to the Accessibility reader when Mail's `outgoing messages`
+    /// AppleScript collection is empty (recent macOS versions). Never
+    /// blocks on Accessibility permission: if AX isn't granted, the
+    /// AppleScript context is returned as-is so the UI can offer a
+    /// dismissible banner instead of a permission wall.
+    ///
+    /// Never reads from the message list — the compose window is the source
+    /// of truth.
     static func fetchComposerContext() async throws -> ComposerContext {
-        guard await isMailRunning() else {
-            throw MailBridgeError.mailNotRunning
-        }
-
-        let raw = try await executeAppleScript(MailScripts.fetchComposerContext)
-
-        if raw.hasPrefix("ERROR:NO_COMPOSER") {
-            throw MailBridgeError.noComposer
-        }
-
-        return try MailThreadParser.parseComposerContext(raw)
-    }
-
-    /// Pull context, falling back to the Accessibility reader when Mail's
-    /// `outgoing messages` AppleScript collection is empty (recent macOS
-    /// versions). Never blocks on Accessibility permission: if AX isn't
-    /// granted, the AppleScript context is returned as-is so the UI can
-    /// offer a dismissible banner instead of a permission wall.
-    static func fetchComposerContextWithAXFallback() async throws -> ComposerContext {
         guard await isMailRunning() else {
             throw MailBridgeError.mailNotRunning
         }
