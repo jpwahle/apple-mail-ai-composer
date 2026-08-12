@@ -5,7 +5,7 @@ import Foundation
 /// different base URL. Model ids follow the `provider/model` convention
 /// (e.g. `skainet/zai-org/GLM-5.2`) and are sent verbatim. Selection is
 /// keyed by provider + id (see `SettingsStore.selectModel`) so an id that
-/// also exists on OpenRouter resolves to the TrustedTokens copy.
+/// also exists on OpenRouter resolves to whichever copy the user picked.
 final class TrustedTokensClient: AIClient {
     let provider = AIProvider.trustedtokens
     private let apiKey: String

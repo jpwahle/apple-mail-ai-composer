@@ -133,11 +133,14 @@ final class SettingsStore: ObservableObject {
             if !popular.isEmpty { return popular }
         }
 
-        // Fallback: top 3 newest from each provider, re-sorted.
+        // Fallback: top 3 newest from each provider, re-sorted. Keep one
+        // model per id — SwiftUI lists key rows on the bare id, so two
+        // providers' copies of the same id must not both appear.
         var candidates: [AIModel] = []
         for (_, provider) in sortedGroupedModels.enumerated() {
             candidates.append(contentsOf: provider.1.prefix(3))
         }
+        var seenIDs = Set<String>()
         return candidates
             .sorted { lhs, rhs in
                 let lk = lhs.sortKey
@@ -145,34 +148,33 @@ final class SettingsStore: ObservableObject {
                 if lk.0 != rk.0 { return lk.0 > rk.0 }
                 return lk.1 > rk.1
             }
+            .filter { seenIDs.insert($0.id).inserted }
             .prefix(5)
             .map { $0 }
     }
 
     var selectedModel: AIModel? {
         if let provider = AIProvider(rawValue: selectedProviderRaw) {
-            if let match = allModels.first(where: {
-                $0.id == selectedModelID && $0.provider == provider
-            }) {
-                return match
-            }
+            // A pinned provider is resolved only within that provider — a
+            // missing or still-loading model list must not reroute requests
+            // to another provider's copy of the same id.
+            return allModels.first { $0.id == selectedModelID && $0.provider == provider }
         }
-        // Legacy fallback for selections stored before `selectedProviderRaw`
-        // existed. Prefer the non-OpenRouter copy when an id is ambiguous so a
-        // TrustedTokens choice doesn't silently reroute to OpenRouter.
-        let matches = allModels.filter { $0.id == selectedModelID }
-        if matches.count == 1 { return matches.first }
-        if let nonOpenRouter = matches.first(where: { $0.provider != .openrouter }) {
-            selectedProviderRaw = nonOpenRouter.provider.rawValue
-            return nonOpenRouter
-        }
-        return matches.first
+        // Selections stored before `selectedProviderRaw` existed carry no
+        // provider; match by id in `allModels` order, mirroring the original
+        // resolution. The provider is stamped on the next explicit pick.
+        return allModels.first { $0.id == selectedModelID }
     }
 
     /// True when `model` is the currently selected model. Provider-aware so
     /// two providers exposing the same id don't both show a checkmark.
     func isSelected(_ model: AIModel) -> Bool {
-        selectedModel.map { $0.id == model.id && $0.provider == model.provider } ?? false
+        guard model.id == selectedModelID else { return false }
+        if let provider = AIProvider(rawValue: selectedProviderRaw) {
+            return model.provider == provider
+        }
+        // Legacy id-only selection: mark the copy `selectedModel` resolves to.
+        return selectedModel?.provider == model.provider
     }
 
     /// Record a user model selection, persisting both the id and the provider
@@ -187,6 +189,14 @@ final class SettingsStore: ObservableObject {
     /// disappeared from the latest fetch.
     func ensureDefaultSelection() {
         if let current = selectedModel, allModels.contains(current) {
+            return
+        }
+        // A pinned selection whose provider hasn't delivered any models yet
+        // (fetch pending or failed) may still resolve — don't replace it just
+        // because another provider's fetch finished first.
+        if !selectedModelID.isEmpty,
+           let provider = AIProvider(rawValue: selectedProviderRaw),
+           !allModels.contains(where: { $0.provider == provider }) {
             return
         }
         if let best = popularModels.first {

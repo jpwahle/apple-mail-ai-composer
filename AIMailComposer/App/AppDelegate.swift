@@ -179,6 +179,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettings() {
         if let window = settingsWindow {
+            // makeKeyAndOrderFront alone won't restore a miniaturized window,
+            // and with LSUIElement there is no Dock icon to restore it from.
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -197,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Apple Mail AI Plugin"
         window.contentView = NSHostingView(rootView: settingsView)
         window.center()
-        window.minSize = NSSize(width: 500, height: 560)
+        window.contentMinSize = NSSize(width: 500, height: 560)
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

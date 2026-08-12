@@ -169,11 +169,11 @@ struct APIKeySettingsView: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
 
-            List(selection: $settingsStore.selectedModelID) {
+            List(selection: selectedModelTag) {
                 ForEach(filteredGroupedModels, id: \.0) { provider, models in
                     Section(provider.displayName) {
                         ForEach(models) { model in
-                            modelRow(model).tag(model.id)
+                            modelRow(model).tag(Self.tag(for: model))
                         }
                     }
                 }
@@ -184,6 +184,34 @@ struct APIKeySettingsView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 8)
         }
+    }
+
+    /// List selection expressed as a provider-qualified tag and routed
+    /// through `selectModel`, so selecting a row (click or arrow keys) can
+    /// never desync the stored id/provider pair, and two providers exposing
+    /// the same model id keep distinct selection values.
+    private var selectedModelTag: Binding<String> {
+        Binding(
+            get: {
+                settingsStore.selectedModel.map(Self.tag(for:)) ?? ""
+            },
+            set: { newValue in
+                let parts = newValue.split(separator: "|", maxSplits: 1)
+                guard parts.count == 2,
+                      let provider = AIProvider(rawValue: String(parts[0]))
+                else { return }
+                let id = String(parts[1])
+                if let model = settingsStore.allModels.first(where: {
+                    $0.id == id && $0.provider == provider
+                }) {
+                    settingsStore.selectModel(model)
+                }
+            }
+        )
+    }
+
+    private static func tag(for model: AIModel) -> String {
+        "\(model.provider.rawValue)|\(model.id)"
     }
 
     private var filteredGroupedModels: [(AIProvider, [AIModel])] {
