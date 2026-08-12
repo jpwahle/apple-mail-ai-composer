@@ -3,7 +3,7 @@ import AppKit
 
 /// Reads the Mail compose window's fields via the Accessibility (AX) API.
 ///
-/// macOS 15 (Sequoia) and later broke Mail's `outgoing messages` AppleScript
+/// Recent macOS versions broke Mail's `outgoing messages` AppleScript
 /// collection — it returns 0 even with a compose window open. This reader
 /// traverses Mail's AX tree to recover the subject, recipients, and draft
 /// content directly from the window's text fields.

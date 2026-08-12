@@ -67,10 +67,10 @@ final class MailBridge {
     }
 
     /// Pull context, falling back to the Accessibility reader when Mail's
-    /// `outgoing messages` AppleScript collection is empty (macOS 15+).
-    /// Never blocks on Accessibility permission: if AX isn't granted, the
-    /// AppleScript context is returned as-is so the UI can offer a
-    /// dismissible banner instead of a permission wall.
+    /// `outgoing messages` AppleScript collection is empty (recent macOS
+    /// versions). Never blocks on Accessibility permission: if AX isn't
+    /// granted, the AppleScript context is returned as-is so the UI can
+    /// offer a dismissible banner instead of a permission wall.
     static func fetchComposerContextWithAXFallback() async throws -> ComposerContext {
         guard await isMailRunning() else {
             throw MailBridgeError.mailNotRunning
@@ -85,9 +85,9 @@ final class MailBridge {
         let context = try MailThreadParser.parseComposerContext(raw)
 
         // If Pass 1 (outgoing messages) found nothing but Pass 2 identified
-        // a compose window by name, the AppleScript path is broken (macOS
-        // 15+). Fall back to the Accessibility reader when permission is
-        // granted; otherwise return the context as-is.
+        // a compose window by name, the AppleScript path is broken (recent
+        // macOS versions). Fall back to the Accessibility reader when
+        // permission is granted; otherwise return the context as-is.
         if context.recipients.isEmpty && context.currentDraft.isEmpty {
             return enrichViaAccessibility(context: context)
         }

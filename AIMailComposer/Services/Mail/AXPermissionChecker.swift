@@ -2,8 +2,9 @@ import AppKit
 
 /// Checks and requests macOS Accessibility (AX) permission.
 ///
-/// On macOS 15+ Mail's `outgoing messages` AppleScript collection is broken,
-/// so the app needs AX access to read the compose window's fields directly.
+/// On recent macOS versions Mail's `outgoing messages` AppleScript collection
+/// is broken, so the app needs AX access to read the compose window's fields
+/// directly.
 enum AXPermissionChecker {
 
     /// True if the app is trusted for Accessibility access.

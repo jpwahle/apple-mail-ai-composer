@@ -10,7 +10,7 @@ enum MailScripts {
     /// Detection priority:
     ///   1. `outgoing message 1` properties (best: gives recipients + draft)
     ///   2. Any Mail `window` that is not the `message viewer`'s window (the
-    ///      list/reading pane). This covers the macOS Sonoma/Sequoia case
+    ///      list/reading pane). This covers the case on newer macOS releases
     ///      where a brand-new blank compose window doesn't show up in
     ///      `outgoing messages`.
     static let fetchComposerContext = """
