@@ -42,8 +42,12 @@ enum AccessibilityReader {
         guard let mailApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first else {
             return nil
         }
+        // The timeout must be set on the system-wide element: set on any
+        // other element it only caps messages to that element, so the
+        // child reads during the walk would still use the ~6s default.
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), messagingTimeout)
+
         let app = AXUIElementCreateApplication(mailApp.processIdentifier)
-        AXUIElementSetMessagingTimeout(app, messagingTimeout)
 
         var windowsRef: CFTypeRef?
         AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windowsRef)

@@ -75,8 +75,6 @@ final class ComposerViewModel: ObservableObject {
                 && context.thread != nil
                 && context.recipients.isEmpty
             state = .ready
-        } catch let error as MailBridgeError {
-            state = .error(error.errorDescription ?? "Unknown error")
         } catch {
             state = .error(error.localizedDescription)
         }

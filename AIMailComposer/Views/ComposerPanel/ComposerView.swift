@@ -66,39 +66,40 @@ struct ComposerView: View {
         case .loadingContext:
             LoadingState(label: "Reading your compose window…")
 
-            case .ready:
-                ReadyState(
-                    context: viewModel.context,
-                    canSummarize: viewModel.canSummarize,
-                    isBusy: viewModel.isBusy,
-                    onSummarize: { Task { await viewModel.summarize() } }
-                )
+        case .ready:
+            ReadyState(
+                context: viewModel.context,
+                canSummarize: viewModel.canSummarize,
+                isBusy: viewModel.isBusy,
+                onSummarize: { Task { await viewModel.summarize() } }
+            )
 
-            case .generating:
-                GeneratingState(
-                    mode: viewModel.mode,
-                    thoughts: viewModel.userThoughts
-                )
+        case .generating:
+            GeneratingState(
+                mode: viewModel.mode,
+                thoughts: viewModel.userThoughts
+            )
 
-            case .complete:
-                ReplyResultView(
-                    reply: $viewModel.generatedReply,
-                    mode: viewModel.mode,
-                    userThoughts: viewModel.userThoughts,
-                    isStreaming: viewModel.isStreaming,
-                    onCopy: { viewModel.copyToClipboard() },
-                    onInsert: { Task { await viewModel.insertIntoMail() } },
-                    onRegenerate: { Task { await viewModel.regenerate() } },
-                    onEdit: { viewModel.backToEditing() }
-                )
+        case .complete:
+            ReplyResultView(
+                reply: $viewModel.generatedReply,
+                mode: viewModel.mode,
+                userThoughts: viewModel.userThoughts,
+                isStreaming: viewModel.isStreaming,
+                onCopy: { viewModel.copyToClipboard() },
+                onInsert: { Task { await viewModel.insertIntoMail() } },
+                onRegenerate: { Task { await viewModel.regenerate() } },
+                onEdit: { viewModel.backToEditing() }
+            )
 
-            case .error(let message):
-                ErrorState(
-                    message: message,
-                    onRetry: { Task { await viewModel.retry() } }
-                )
-            }
+        case .error(let message):
+            ErrorState(
+                message: message,
+                onRetry: { Task { await viewModel.retry() } }
+            )
+        }
     }
+
     // MARK: Derived state
 
     private var isInputEditable: Bool {
