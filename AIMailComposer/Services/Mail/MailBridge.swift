@@ -50,8 +50,15 @@ final class MailBridge {
         }
     }
 
-    /// Pull context from the currently open Mail compose window.
-    /// Never reads from the message list — the compose window is the source of truth.
+    /// Pull context from the currently open Mail compose window, falling
+    /// back to the Accessibility reader when Mail's `outgoing messages`
+    /// AppleScript collection is empty (recent macOS versions). Never
+    /// blocks on Accessibility permission: if AX isn't granted, the
+    /// AppleScript context is returned as-is so the UI can offer a
+    /// dismissible banner instead of a permission wall.
+    ///
+    /// Never reads from the message list — the compose window is the source
+    /// of truth.
     static func fetchComposerContext() async throws -> ComposerContext {
         guard await isMailRunning() else {
             throw MailBridgeError.mailNotRunning
@@ -63,7 +70,43 @@ final class MailBridge {
             throw MailBridgeError.noComposer
         }
 
-        return try MailThreadParser.parseComposerContext(raw)
+        let context = try MailThreadParser.parseComposerContext(raw)
+
+        // If Pass 1 (outgoing messages) found nothing but Pass 2 identified
+        // a compose window by name, the AppleScript path is broken (recent
+        // macOS versions). Fall back to the Accessibility reader when
+        // permission is granted; otherwise return the context as-is.
+        if context.recipients.isEmpty && context.currentDraft.isEmpty {
+            return enrichViaAccessibility(context: context)
+        }
+
+        return context
+    }
+
+    /// Opportunistically enrich the context via the AX reader. If AX isn't
+    /// trusted or no compose window is found, the original context is
+    /// returned unchanged — never throws.
+    private static func enrichViaAccessibility(context: ComposerContext) -> ComposerContext {
+        guard AXPermissionChecker.isGranted() else {
+            return context
+        }
+
+        guard let ax = AccessibilityReader.readComposeWindow() else {
+            // AX is granted but no compose window was found — return the
+            // original (possibly empty) context rather than failing.
+            return context
+        }
+
+        let thread = context.thread
+        let subject = ax.subject.isEmpty ? context.subject : ax.subject
+
+        return ComposerContext(
+            recipients: ax.recipients,
+            subject: subject,
+            currentDraft: ax.draftContent,
+            thread: thread,
+            composeWindowFrame: context.composeWindowFrame
+        )
     }
 
     /// Write the reply directly into the current Mail compose window.

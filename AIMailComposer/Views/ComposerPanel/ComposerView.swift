@@ -16,6 +16,16 @@ struct ComposerView: View {
             Divider()
                 .opacity(0.4)
 
+            if viewModel.showsAccessibilityBanner {
+                AXPermissionBanner(
+                    onGrant: { viewModel.requestAXPermission() },
+                    onOpenSettings: { viewModel.openAccessibilitySettings() },
+                    onRetry: { Task { await viewModel.retryAfterAXPermission() } },
+                    onDismiss: { viewModel.dismissAccessibilityBanner() }
+                )
+                Divider().opacity(0.4)
+            }
+
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -691,6 +701,58 @@ private struct ErrorState: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Accessibility permission banner
+
+private struct AXPermissionBanner: View {
+    let onGrant: () -> Void
+    let onOpenSettings: () -> Void
+    let onRetry: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(.blue)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Accessibility helps read this reply")
+                    .font(.system(size: 12, weight: .semibold))
+
+                Text("Mail's AppleScript didn't expose the recipients or draft. "
+                     + "Grant Accessibility so the plugin can read them directly "
+                     + "from the compose window.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    Button("Grant Accessibility", action: onGrant)
+                        .controlSize(.small)
+                    Button("Open Settings", action: onOpenSettings)
+                        .controlSize(.small)
+                    Button("Retry", action: onRetry)
+                        .controlSize(.small)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.blue.opacity(0.06))
     }
 }
 
