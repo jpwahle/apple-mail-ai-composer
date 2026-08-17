@@ -1,7 +1,7 @@
 import Foundation
 
 /// A model identified as popular from the OpenRouter public API.
-struct TrendingModel: Sendable {
+struct TrendingModel: Sendable, Codable {
     let openRouterId: String   // e.g. "anthropic/claude-sonnet-4"
     let provider: AIProvider?  // Mapped provider, nil for non-major providers
     let slug: String           // Model name without provider prefix

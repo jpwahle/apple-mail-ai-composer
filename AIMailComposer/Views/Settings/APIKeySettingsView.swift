@@ -285,16 +285,15 @@ struct APIKeySettingsView: View {
         localBaseURL = trimmedLocalURL
 
         do {
-            try applyKey(trimmedAnthropic, for: .anthropic) { settingsStore.anthropicModels = [] }
-            try applyKey(trimmedOpenAI, for: .openai) { settingsStore.openaiModels = [] }
-            try applyKey(trimmedGemini, for: .gemini) { settingsStore.geminiModels = [] }
-            try applyKey(trimmedOpenRouter, for: .openrouter) { settingsStore.openrouterModels = [] }
-            try applyKey(trimmedTrustedTokens, for: .trustedtokens) { settingsStore.trustedtokensModels = [] }
+            try applyKey(trimmedAnthropic, for: .anthropic)
+            try applyKey(trimmedOpenAI, for: .openai)
+            try applyKey(trimmedGemini, for: .gemini)
+            try applyKey(trimmedOpenRouter, for: .openrouter)
+            try applyKey(trimmedTrustedTokens, for: .trustedtokens)
 
             if trimmedLocalURL.isEmpty {
                 settingsStore.localAIBaseURL = ""
-                settingsStore.localModels = []
-                settingsStore.localFetchError = nil
+                settingsStore.clearModels(for: .local)
             } else {
                 var sanitizedURL = trimmedLocalURL
                 if !sanitizedURL.lowercased().hasPrefix("http://") && !sanitizedURL.lowercased().hasPrefix("https://") {
@@ -333,10 +332,10 @@ struct APIKeySettingsView: View {
         }
     }
 
-    private func applyKey(_ key: String, for provider: AIProvider, onDelete clearModels: () -> Void) throws {
+    private func applyKey(_ key: String, for provider: AIProvider) throws {
         if key.isEmpty {
             settingsStore.deleteAPIKey(for: provider)
-            clearModels()
+            settingsStore.clearModels(for: provider)
         } else {
             try settingsStore.setAPIKey(key, for: provider)
         }

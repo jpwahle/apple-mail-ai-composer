@@ -6,6 +6,22 @@ import SwiftUI
 final class SettingsStore: ObservableObject {
     private let keychainService = KeychainService()
 
+    init() {
+        // Start from the last-known model lists so the picker (and the
+        // stored model selection) works immediately, before — or without —
+        // a successful fetch this launch.
+        if let cached = ModelCache.load() {
+            anthropicModels = cached.models.filter { $0.provider == .anthropic }
+            openaiModels = cached.models.filter { $0.provider == .openai }
+            geminiModels = cached.models.filter { $0.provider == .gemini }
+            openrouterModels = cached.models.filter { $0.provider == .openrouter }
+            trustedtokensModels = cached.models.filter { $0.provider == .trustedtokens }
+            localModels = cached.models.filter { $0.provider == .local }
+            trendingModels = cached.trending
+            ensureDefaultSelection()
+        }
+    }
+
     @AppStorage("selectedModelID") var selectedModelID: String = ""
     // Disambiguates models that share an id across providers (e.g. the same
     // `vendor/model` slug exposed by both OpenRouter and TrustedTokens).
@@ -204,6 +220,25 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// Drop a provider's models — e.g. after its API key or base URL was
+    /// removed — from both the in-memory lists and the on-disk cache, so
+    /// they don't resurface on the next launch.
+    func clearModels(for provider: AIProvider) {
+        switch provider {
+        case .anthropic: anthropicModels = []; anthropicFetchError = nil
+        case .openai: openaiModels = []; openaiFetchError = nil
+        case .gemini: geminiModels = []; geminiFetchError = nil
+        case .openrouter: openrouterModels = []; openrouterFetchError = nil
+        case .trustedtokens: trustedtokensModels = []; trustedtokensFetchError = nil
+        case .local: localModels = []; localFetchError = nil
+        }
+        persistModelCache()
+    }
+
+    private func persistModelCache() {
+        ModelCache.save(ModelCacheSnapshot(models: allModels, trending: trendingModels))
+    }
+
     func setAPIKey(_ key: String, for provider: AIProvider) throws {
         try keychainService.setKey(key, for: provider)
     }
@@ -299,6 +334,10 @@ final class SettingsStore: ObservableObject {
                 break // handled above
             }
         }
+
+        // A failed fetch leaves the previous list untouched, so persisting
+        // unconditionally never overwrites cached models with nothing.
+        persistModelCache()
     }
 
     func fetchAllModels() async {
@@ -319,6 +358,68 @@ final class SettingsStore: ObservableObject {
             }
         }
 
-        trendingModels = await trending
+        // fetchTrendingModels returns [] on any failure — keep the cached
+        // ranking in that case so `popularModels` doesn't degrade offline.
+        let fetchedTrending = await trending
+        if !fetchedTrending.isEmpty {
+            trendingModels = fetchedTrending
+            persistModelCache()
+        }
+    }
+
+    // MARK: - Auto Refresh
+
+    /// How often to silently re-fetch model lists while the app runs, so
+    /// newly released models appear without re-saving an API key.
+    private static let modelRefreshInterval: TimeInterval = 6 * 60 * 60
+    /// Retry ladder used while a configured provider's fetch is failing —
+    /// most commonly a launch at login before the network is up.
+    private static let retryDelays: [TimeInterval] = [30, 60, 120, 300, 900, 1800]
+
+    private var autoRefreshTask: Task<Void, Never>?
+
+    /// Fetch models now, then keep them fresh for the app's lifetime:
+    /// refetch on a regular interval, or with backoff while fetches fail.
+    func startAutoRefresh() {
+        guard autoRefreshTask == nil else { return }
+        autoRefreshTask = Task { [weak self] in
+            var failedAttempts = 0
+            while !Task.isCancelled {
+                let delay: TimeInterval
+                // Scope the strong reference so it isn't held across the
+                // (potentially hours-long) sleep below.
+                do {
+                    guard let self else { return }
+                    await self.fetchAllModels()
+                    if self.hasFetchFailures {
+                        delay = Self.retryDelays[min(failedAttempts, Self.retryDelays.count - 1)]
+                        failedAttempts += 1
+                    } else {
+                        failedAttempts = 0
+                        delay = Self.modelRefreshInterval
+                    }
+                }
+                try? await Task.sleep(for: .seconds(delay))
+            }
+        }
+    }
+
+    /// True when at least one configured provider's last fetch failed.
+    private var hasFetchFailures: Bool {
+        if !localAIBaseURL.isEmpty, localFetchError != nil { return true }
+        for provider in AIProvider.allCases where provider != .local {
+            guard let key = getAPIKey(for: provider), !key.isEmpty else { continue }
+            let error: String?
+            switch provider {
+            case .anthropic: error = anthropicFetchError
+            case .openai: error = openaiFetchError
+            case .gemini: error = geminiFetchError
+            case .openrouter: error = openrouterFetchError
+            case .trustedtokens: error = trustedtokensFetchError
+            case .local: error = nil
+            }
+            if error != nil { return true }
+        }
+        return false
     }
 }

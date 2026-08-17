@@ -32,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeHotkeyChanges()
         observeUpdateState()
         scheduleRecurringUpdateChecks()
-        Task { await settingsStore.fetchAllModels() }
+        settingsStore.startAutoRefresh()
         openSettings()
         Task { updateChecker.checkForUpdates() }
     }
