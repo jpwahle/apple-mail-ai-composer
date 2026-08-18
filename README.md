@@ -40,16 +40,7 @@ The **Apple Mail AI Plugin** lives in your menu bar and connects directly to App
 
 ### Download
 
-Grab the latest `.dmg` from [Releases](../../releases), open it, and drag **Apple Mail AI Plugin** to your Applications folder.
-
-> **macOS Gatekeeper:** Since the app isn't signed with an Apple Developer certificate, macOS will block it on first launch. To open it:
-> 1. Right-click (or Control-click) the app and select **Open**
-> 2. Click **Open** in the dialog that appears
->
-> You only need to do this once. Alternatively, run:
-> ```
-> xattr -cr /Applications/Apple\ Mail\ AI\ Plugin.app
-> ```
+Grab the latest `.dmg` from the [Webpage](https://jpwahle.github.io/apple-mail-ai-plugin/).
 
 ## Get Your API Key
 
