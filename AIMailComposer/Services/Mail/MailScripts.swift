@@ -218,9 +218,11 @@ enum MailScripts {
     """
 
     /// Write the generated reply into the current compose window.
-    /// Mail-scripting-only path: set `content of outgoing message 1`. If that
-    /// fails (no outgoing message visible to the API), fall back to placing
-    /// the text on the clipboard + activating Mail so the user can paste.
+    /// Mail-scripting-only path: set `content of outgoing message 1`.
+    /// Returns "INSERTED" on success and "NO_OUTGOING" when the compose
+    /// window isn't visible to the scripting API (recent macOS versions) —
+    /// `MailBridge` then falls back to the Accessibility writer
+    /// (`AccessibilityWriter`), mirroring the read path's fallback.
     static func insertReply(_ text: String) -> String {
         let escaped = text
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -243,13 +245,12 @@ enum MailScripts {
             on error errMsg
                 -- fall through
             end try
-            activate
         end tell
 
-        if not insertedViaAPI then
-            set the clipboard to "\(asString)"
+        if insertedViaAPI then
+            return "INSERTED"
         end if
-        return "OK"
+        return "NO_OUTGOING"
         """
     }
 

@@ -110,15 +110,52 @@ final class MailBridge {
     }
 
     /// Write the reply directly into the current Mail compose window.
-    /// Falls back to the clipboard if the AppleScript insert fails.
+    ///
+    /// Three passes, mirroring the read path's AppleScript → AX fallback:
+    ///   1. Mail scripting API (`content of outgoing message 1`) — works on
+    ///      older macOS versions.
+    ///   2. AX write into the compose body — recent macOS versions return an
+    ///      empty `outgoing messages` collection, so pass 1 silently no-ops
+    ///      there (the same breakage `fetchComposerContext` works around).
+    ///   3. Synthetic ⌘V into the body — last resort when the body is
+    ///      focused but rejects the AX text write.
+    /// The clipboard is populated first so a manual paste works no matter
+    /// which pass ran.
     @MainActor
     static func insertReply(_ text: String) async {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        _ = try? await executeAppleScript(MailScripts.insertReply(text))
+        // Pass 1: Mail scripting API.
+        let scriptResult = (try? await executeAppleScript(MailScripts.insertReply(text))) ?? ""
+        if scriptResult.hasPrefix("INSERTED") {
+            activateMail()
+            return
+        }
+
+        // Pass 2: AX writer. Activate Mail first so focusing the compose
+        // body sticks. The walk is IPC-heavy — keep it off the main thread.
         activateMail()
+        let result = await Task.detached(priority: .userInitiated) {
+            AccessibilityWriter.insertIntoComposeBody(text)
+        }.value
+
+        switch result {
+        case .inserted, .failed:
+            // .failed leaves the reply on the clipboard, the pre-existing
+            // behavior for a missing compose window.
+            return
+        case .bodyFocused:
+            // Pass 3: the body has focus but rejected the AX write — paste
+            // the clipboard into it. The short delay lets Mail finish
+            // activating before the key events arrive.
+            guard let mail = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first else {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            AccessibilityWriter.pasteCommandV(pid: mail.processIdentifier)
+        }
     }
 
     @MainActor
