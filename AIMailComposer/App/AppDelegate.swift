@@ -194,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(updateChecker)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 728),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 700),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -202,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Apple Mail AI Plugin"
         window.contentView = NSHostingView(rootView: settingsView)
         window.center()
-        window.contentMinSize = NSSize(width: 500, height: 560)
+        window.contentMinSize = NSSize(width: 540, height: 560)
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

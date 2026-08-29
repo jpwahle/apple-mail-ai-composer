@@ -5,35 +5,27 @@ struct WritingStyleView: View {
     @EnvironmentObject var settingsStore: SettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Add your own instructions to guide how emails are written. For example: \"Keep it casual\" or \"Always sign off with Cheers\".")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        Form {
+            Section {
+                ZStack(alignment: .topLeading) {
+                    if settingsStore.customWritingInstructions.isEmpty {
+                        Text("e.g. Be concise and friendly, use British English...")
+                            .font(.body)
+                            .foregroundStyle(.tertiary)
+                            .allowsHitTesting(false)
+                    }
 
-            ZStack(alignment: .topLeading) {
-                if settingsStore.customWritingInstructions.isEmpty {
-                    Text("e.g. Be concise and friendly, use British English...")
-                        .font(.body)
-                        .foregroundStyle(.tertiary)
-                        .allowsHitTesting(false)
+                    PlainTextEditor(text: $settingsStore.customWritingInstructions)
                 }
-
-                PlainTextEditor(text: $settingsStore.customWritingInstructions)
+                .frame(minHeight: 240)
+                .padding(.vertical, 6)
+            } header: {
+                Text("Writing Instructions")
+            } footer: {
+                Text("Added to every request to guide how emails are written. For example: \"Keep it casual\" or \"Always sign off with Cheers\".")
             }
-            .padding(8)
-            .frame(maxHeight: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(nsColor: .textBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-            )
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .formStyle(.grouped)
     }
 }
 

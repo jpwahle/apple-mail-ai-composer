@@ -13,56 +13,37 @@ struct GeneralSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 24) {
-                howToUse
-                Divider()
-                shortcutSection
-                Divider()
-                startupSection
-                Divider()
-                updateSection
-            }
-            .padding(20)
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Startup
-
-    private var startupSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Startup")
-                .font(.system(size: 13, weight: .semibold))
-
-            Toggle(isOn: Binding(
-                get: { settingsStore.launchAtLogin },
-                set: { settingsStore.setLaunchAtLogin($0) }
-            )) {
-                Text("Launch at login")
-                    .font(.system(size: 12))
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-        }
-    }
-
-    // MARK: - How to Use
-
-    private var howToUse: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("How to Use")
-                .font(.system(size: 13, weight: .semibold))
-
-            VStack(alignment: .leading, spacing: 10) {
+        Form {
+            Section("How to Use") {
                 step(1, "Open or reply to an email in Apple Mail")
                 step(2, "Press **\(shortcutDisplay)** to open the AI composer")
                 step(3, "Describe what you want to say")
                 step(4, "Your reply is generated and inserted into the draft")
             }
+
+            Section {
+                LabeledContent("Keyboard shortcut") {
+                    ShortcutRecorderView(settingsStore: settingsStore)
+                }
+            } footer: {
+                Text("Click the shortcut, then press a new key combination. It works from anywhere.")
+            }
+
+            Section {
+                Toggle("Launch at login", isOn: Binding(
+                    get: { settingsStore.launchAtLogin },
+                    set: { settingsStore.setLaunchAtLogin($0) }
+                ))
+                .toggleStyle(.switch)
+            }
+
+            Section("Updates") {
+                LabeledContent("Version \(updateChecker.currentVersion)") {
+                    updateStatusView
+                }
+            }
         }
+        .formStyle(.grouped)
     }
 
     private func step(_ number: Int, _ text: LocalizedStringKey) -> some View {
@@ -74,44 +55,13 @@ struct GeneralSettingsView: View {
                 .background(Circle().fill(Color.accentColor))
 
             Text(text)
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(.primary)
         }
-    }
-
-    // MARK: - Shortcut
-
-    private var shortcutSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Keyboard Shortcut")
-                .font(.system(size: 13, weight: .semibold))
-
-            Text("Global shortcut to open the composer panel from anywhere.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-
-            ShortcutRecorderView(settingsStore: settingsStore)
-        }
+        .padding(.vertical, 1)
     }
 
     // MARK: - Updates
-
-    private var updateSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Updates")
-                .font(.system(size: 13, weight: .semibold))
-
-            HStack(spacing: 12) {
-                Text("Version \(updateChecker.currentVersion)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                updateStatusView
-            }
-        }
-    }
 
     @ViewBuilder
     private var updateStatusView: some View {
@@ -123,11 +73,10 @@ struct GeneralSettingsView: View {
             .controlSize(.small)
 
         case .upToDate:
-            HStack(spacing: 6) {
-                Text("You're on the latest version.")
-                    .font(.system(size: 12))
+            HStack(spacing: 8) {
+                Text("Up to date")
                     .foregroundStyle(.secondary)
-                Button("Check for Updates") {
+                Button("Check Again") {
                     updateChecker.checkForUpdates(manual: true)
                 }
                 .controlSize(.small)
@@ -137,8 +86,7 @@ struct GeneralSettingsView: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Checking...")
-                    .font(.system(size: 12))
+                Text("Checking…")
                     .foregroundStyle(.secondary)
             }
 
@@ -146,8 +94,7 @@ struct GeneralSettingsView: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Downloading v\(updateChecker.latestVersion ?? "")...")
-                    .font(.system(size: 12))
+                Text("Downloading v\(updateChecker.latestVersion ?? "")…")
                     .foregroundStyle(.secondary)
             }
 
@@ -161,8 +108,7 @@ struct GeneralSettingsView: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Installing...")
-                    .font(.system(size: 12))
+                Text("Installing…")
                     .foregroundStyle(.secondary)
             }
 
@@ -196,37 +142,37 @@ private struct ShortcutRecorderView: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Current shortcut badge
-            Text(isRecording ? "Press shortcut…" : displayString)
+        Button {
+            if isRecording {
+                stopRecording()
+            } else {
+                startRecording()
+            }
+        } label: {
+            Text(isRecording ? "Press keys…" : displayString)
                 .font(isRecording
                     ? .system(size: 12)
-                    : .system(size: 14, weight: .medium, design: .rounded))
+                    : .system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(isRecording ? .secondary : .primary)
-                .frame(minWidth: 80)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
+                .frame(minWidth: 84)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.primary.opacity(isRecording ? 0.03 : 0.05))
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(isRecording ? 0.03 : 0.06))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .strokeBorder(
-                            isRecording ? Color.accentColor : Color.primary.opacity(0.1),
-                            lineWidth: isRecording ? 1.5 : 1
+                            isRecording ? Color.accentColor : Color.primary.opacity(0.12),
+                            lineWidth: 1
                         )
                 )
-
-            Button(isRecording ? "Cancel" : "Record New Shortcut") {
-                if isRecording {
-                    stopRecording()
-                } else {
-                    startRecording()
-                }
-            }
-            .controlSize(.small)
         }
+        .buttonStyle(.plain)
+        .help(isRecording
+            ? "Press the new shortcut, or Esc to cancel"
+            : "Click to record a new shortcut")
         .onDisappear {
             stopRecording()
         }

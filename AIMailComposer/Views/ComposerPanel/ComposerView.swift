@@ -43,7 +43,7 @@ struct ComposerView: View {
         }
         .frame(minWidth: 500, minHeight: 500)
         .background(
-            Color(nsColor: .windowBackgroundColor)
+            VisualEffectBackground()
                 .ignoresSafeArea()
         )
         .background(
@@ -150,6 +150,23 @@ struct ComposerView: View {
     }
 }
 
+// MARK: - Background
+
+/// Translucent window material behind the panel content, matching modern
+/// macOS floating panels. `.active` keeps the blur even while the
+/// non-activating panel isn't key.
+private struct VisualEffectBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
 // MARK: - Header
 
 private struct ComposerHeader: View {
@@ -170,7 +187,7 @@ private struct ComposerHeader: View {
                     .lineLimit(1)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

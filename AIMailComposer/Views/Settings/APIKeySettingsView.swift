@@ -11,80 +11,109 @@ struct APIKeySettingsView: View {
     @State private var statusMessage: String = ""
     @State private var isError: Bool = false
     @State private var modelSearchText: String = ""
+    @State private var autoSaveTask: Task<Void, Never>?
 
     var body: some View {
-        VStack(spacing: 0) {
-            apiKeyFields
-            Divider()
-            modelSection
+        Form {
+            keySection
+            modelSections
         }
+        .formStyle(.grouped)
+        .onAppear {
+            anthropicKey = settingsStore.getAPIKey(for: .anthropic) ?? ""
+            openaiKey = settingsStore.getAPIKey(for: .openai) ?? ""
+            geminiKey = settingsStore.getAPIKey(for: .gemini) ?? ""
+            openrouterKey = settingsStore.getAPIKey(for: .openrouter) ?? ""
+            trustedtokensKey = settingsStore.getAPIKey(for: .trustedtokens) ?? ""
+            localBaseURL = settingsStore.localAIBaseURL
+        }
+        .onChange(of: anthropicKey) { _, _ in scheduleAutoSave() }
+        .onChange(of: openaiKey) { _, _ in scheduleAutoSave() }
+        .onChange(of: geminiKey) { _, _ in scheduleAutoSave() }
+        .onChange(of: openrouterKey) { _, _ in scheduleAutoSave() }
+        .onChange(of: trustedtokensKey) { _, _ in scheduleAutoSave() }
+        .onChange(of: localBaseURL) { _, _ in scheduleAutoSave() }
     }
 
     // MARK: - API Keys
 
-    private var apiKeyFields: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            keyField("Anthropic", placeholder: "sk-ant-api03-…", text: $anthropicKey)
-                .onAppear { anthropicKey = settingsStore.getAPIKey(for: .anthropic) ?? "" }
-
-            keyField("OpenAI", placeholder: "sk-…", text: $openaiKey)
-                .onAppear { openaiKey = settingsStore.getAPIKey(for: .openai) ?? "" }
-
-            keyField("Google Gemini", placeholder: "AIza…", text: $geminiKey)
-                .onAppear { geminiKey = settingsStore.getAPIKey(for: .gemini) ?? "" }
-
-            VStack(alignment: .leading, spacing: 3) {
-                keyField("OpenRouter", placeholder: "sk-or-v1-…", text: $openrouterKey)
-                    .onAppear { openrouterKey = settingsStore.getAPIKey(for: .openrouter) ?? "" }
-                Text("One key for every model on openrouter.ai")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                keyField("TrustedTokens", placeholder: "sk-bf…", text: $trustedtokensKey)
-                    .onAppear { trustedtokensKey = settingsStore.getAPIKey(for: .trustedtokens) ?? "" }
-                Text("EU-sovereign models at api.trustedtokens.eu")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                keyField("Local AI", placeholder: "http://localhost:1234", text: $localBaseURL)
-                    .onAppear { localBaseURL = settingsStore.localAIBaseURL }
-                Text("LM Studio or Ollama. Enter the server's base URL.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
-            }
-
-            HStack(spacing: 8) {
-                Button("Save Keys") { saveKeys() }
-                    .controlSize(.small)
+    private var keySection: some View {
+        Section {
+            keyRow("Anthropic", placeholder: "sk-ant-api03-…", text: $anthropicKey)
+            keyRow("OpenAI", placeholder: "sk-…", text: $openaiKey)
+            keyRow("Google Gemini", placeholder: "AIza…", text: $geminiKey)
+            keyRow("OpenRouter",
+                   subtitle: "One key for every model on openrouter.ai",
+                   placeholder: "sk-or-v1-…",
+                   text: $openrouterKey)
+            keyRow("TrustedTokens",
+                   subtitle: "EU-sovereign models at api.trustedtokens.eu",
+                   placeholder: "sk-bf…",
+                   text: $trustedtokensKey)
+            keyRow("Local AI",
+                   subtitle: "LM Studio or Ollama server URL",
+                   placeholder: "http://localhost:1234",
+                   text: $localBaseURL)
+        } header: {
+            Text("API Keys")
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
                 if !statusMessage.isEmpty {
                     Text(statusMessage)
-                        .font(.system(size: 11))
-                        .foregroundStyle(isError ? .red : .green)
-                        .lineLimit(1)
+                        .foregroundStyle(isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                 }
+                Text("Keys are saved automatically to the macOS Keychain and never leave this Mac except to call the provider.")
             }
-            .padding(.top, 2)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
     }
 
-    private func keyField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+    private func keyRow(
+        _ label: String,
+        subtitle: String? = nil,
+        placeholder: String,
+        text: Binding<String>
+    ) -> some View {
+        LabeledContent {
+            KeyInputField(placeholder: placeholder, text: text) {
+                autoSaveTask?.cancel()
+                saveKeys()
+            }
+        } label: {
             Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, design: .monospaced))
+            if let subtitle {
+                Text(subtitle)
+            }
         }
+    }
+
+    // MARK: - Auto-save
+
+    /// Saves and refetches models ~1s after the user stops typing in any
+    /// key field, so entering a key immediately populates the model list
+    /// without a separate Save step.
+    private func scheduleAutoSave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            autoSaveIfChanged()
+        }
+    }
+
+    private func autoSaveIfChanged() {
+        func trimmed(_ value: String) -> String {
+            value.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // Compare against what's stored so the initial onAppear load (and
+        // saveKeys' own trim/sanitize write-backs) don't re-trigger a save.
+        let changed = trimmed(anthropicKey) != (settingsStore.getAPIKey(for: .anthropic) ?? "")
+            || trimmed(openaiKey) != (settingsStore.getAPIKey(for: .openai) ?? "")
+            || trimmed(geminiKey) != (settingsStore.getAPIKey(for: .gemini) ?? "")
+            || trimmed(openrouterKey) != (settingsStore.getAPIKey(for: .openrouter) ?? "")
+            || trimmed(trustedtokensKey) != (settingsStore.getAPIKey(for: .trustedtokens) ?? "")
+            || trimmed(localBaseURL) != settingsStore.localAIBaseURL
+        guard changed else { return }
+        saveKeys()
     }
 
     // MARK: - Model Selection
@@ -99,11 +128,62 @@ struct APIKeySettingsView: View {
     }
 
     @ViewBuilder
-    private var modelSection: some View {
-        if settingsStore.allModels.isEmpty && !isFetching {
-            modelEmptyState
-        } else {
-            modelList
+    private var modelSections: some View {
+        Section {
+            if settingsStore.allModels.isEmpty && !isFetching {
+                modelEmptyState
+            } else {
+                searchRow
+            }
+        } header: {
+            HStack {
+                Text("Model")
+                Spacer()
+                if isFetching {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Button {
+                        Task { await settingsStore.fetchAllModels() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Refresh model list")
+                }
+            }
+        } footer: {
+            fetchErrorLines
+        }
+
+        ForEach(filteredGroupedModels, id: \.0) { provider, models in
+            Section(provider.displayName) {
+                ForEach(models) { model in
+                    modelRow(model)
+                }
+            }
+        }
+    }
+
+    private var searchRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.system(size: 12))
+            TextField("Search models…", text: $modelSearchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+            if !modelSearchText.isEmpty {
+                Button {
+                    modelSearchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -119,99 +199,9 @@ struct APIKeySettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            fetchErrorLines
         }
-        .padding()
         .frame(maxWidth: .infinity)
-    }
-
-    private var modelList: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Model")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Spacer()
-                if isFetching {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-                Button("Refresh") {
-                    Task { await settingsStore.fetchAllModels() }
-                }
-                .controlSize(.small)
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                    .font(.system(size: 12))
-                TextField("Search models…", text: $modelSearchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                if !modelSearchText.isEmpty {
-                    Button {
-                        modelSearchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .padding(.horizontal)
-            .padding(.bottom, 8)
-
-            List(selection: selectedModelTag) {
-                ForEach(filteredGroupedModels, id: \.0) { provider, models in
-                    Section(provider.displayName) {
-                        ForEach(models) { model in
-                            modelRow(model).tag(Self.tag(for: model))
-                        }
-                    }
-                }
-            }
-            .listStyle(.bordered)
-
-            fetchErrorLines
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-        }
-    }
-
-    /// List selection expressed as a provider-qualified tag and routed
-    /// through `selectModel`, so selecting a row (click or arrow keys) can
-    /// never desync the stored id/provider pair, and two providers exposing
-    /// the same model id keep distinct selection values.
-    private var selectedModelTag: Binding<String> {
-        Binding(
-            get: {
-                settingsStore.selectedModel.map(Self.tag(for:)) ?? ""
-            },
-            set: { newValue in
-                let parts = newValue.split(separator: "|", maxSplits: 1)
-                guard parts.count == 2,
-                      let provider = AIProvider(rawValue: String(parts[0]))
-                else { return }
-                let id = String(parts[1])
-                if let model = settingsStore.allModels.first(where: {
-                    $0.id == id && $0.provider == provider
-                }) {
-                    settingsStore.selectModel(model)
-                }
-            }
-        )
-    }
-
-    private static func tag(for model: AIModel) -> String {
-        "\(model.provider.rawValue)|\(model.id)"
+        .padding(.vertical, 12)
     }
 
     private var filteredGroupedModels: [(AIProvider, [AIModel])] {
@@ -230,40 +220,44 @@ struct APIKeySettingsView: View {
     }
 
     private func modelRow(_ model: AIModel) -> some View {
-        HStack {
-            Text(model.displayName)
-            Spacer()
-            if settingsStore.isSelected(model) {
-                Image(systemName: "checkmark")
-                    .foregroundStyle(.blue)
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
+        Button {
             settingsStore.selectModel(model)
+        } label: {
+            HStack {
+                Text(model.displayName)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if settingsStore.isSelected(model) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
     private var fetchErrorLines: some View {
-        VStack(spacing: 2) {
+        VStack(alignment: .leading, spacing: 2) {
             if let err = settingsStore.anthropicFetchError {
-                Text("Anthropic: \(err)").font(.caption2).foregroundStyle(.red)
+                Text("Anthropic: \(err)").foregroundStyle(.red)
             }
             if let err = settingsStore.openaiFetchError {
-                Text("OpenAI: \(err)").font(.caption2).foregroundStyle(.red)
+                Text("OpenAI: \(err)").foregroundStyle(.red)
             }
             if let err = settingsStore.geminiFetchError {
-                Text("Gemini: \(err)").font(.caption2).foregroundStyle(.red)
+                Text("Gemini: \(err)").foregroundStyle(.red)
             }
             if let err = settingsStore.openrouterFetchError {
-                Text("OpenRouter: \(err)").font(.caption2).foregroundStyle(.red)
+                Text("OpenRouter: \(err)").foregroundStyle(.red)
             }
             if let err = settingsStore.trustedtokensFetchError {
-                Text("TrustedTokens: \(err)").font(.caption2).foregroundStyle(.red)
+                Text("TrustedTokens: \(err)").foregroundStyle(.red)
             }
             if let err = settingsStore.localFetchError {
-                Text("Local AI: \(err)").font(.caption2).foregroundStyle(.red)
+                Text("Local AI: \(err)").foregroundStyle(.red)
             }
         }
     }
@@ -339,5 +333,44 @@ struct APIKeySettingsView: View {
         } else {
             try settingsStore.setAPIKey(key, for: provider)
         }
+    }
+}
+
+// MARK: - Key input field
+
+/// A visibly bordered input for API keys. Fixed width so a long key scrolls
+/// inside the field instead of stretching the row, with an accent border
+/// while focused.
+private struct KeyInputField: View {
+    let placeholder: String
+    @Binding var text: String
+    let onSubmit: () -> Void
+
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        // Empty title + explicit prompt: inside a Form, a TextField's
+        // title renders as a second visible label, not as placeholder.
+        TextField("", text: $text, prompt: Text(placeholder))
+            .labelsHidden()
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, design: .monospaced))
+            .multilineTextAlignment(.leading)
+            .focused($focused)
+            .onSubmit(onSubmit)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(width: 250)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(nsColor: .textBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(
+                        focused ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.15),
+                        lineWidth: 1
+                    )
+            )
     }
 }
