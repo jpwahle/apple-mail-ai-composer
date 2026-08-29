@@ -17,12 +17,17 @@ TEAM_ID ?=
 build:
 	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
 	@mkdir -p "$(APP_BUNDLE)/Contents/Resources"
-	xcodebuild -scheme $(BUNDLE_NAME) \
+	xcodebuild -project $(BUNDLE_NAME).xcodeproj \
+		-scheme $(BUNDLE_NAME) \
 		-configuration Debug \
 		-destination 'platform=macOS' \
 		-derivedDataPath $(BUILD_DIR)/DerivedData \
+		ENABLE_DEBUG_DYLIB=NO \
 		build
-	@cp $(BUILD_DIR)/DerivedData/Build/Products/Debug/$(BUNDLE_NAME) "$(EXECUTABLE)"
+	@cp "$(BUILD_DIR)/DerivedData/Build/Products/Debug/$(BUNDLE_NAME).app/Contents/MacOS/$(BUNDLE_NAME)" "$(EXECUTABLE)"
+	@# Drop the Xcode bundle signature (bound to Xcode's Info.plist) and
+	@# re-sign standalone, since we assemble our own bundle around it.
+	@codesign --force --sign - "$(EXECUTABLE)"
 	@cp AIMailComposer/Resources/AppIcon.icns "$(APP_BUNDLE)/Contents/Resources/"
 	@cp AIMailComposer/App/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
 	@# Merge additional keys into Info.plist
@@ -40,14 +45,16 @@ build:
 release:
 	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
 	@mkdir -p "$(APP_BUNDLE)/Contents/Resources"
-	xcodebuild -scheme $(BUNDLE_NAME) \
+	xcodebuild -project $(BUNDLE_NAME).xcodeproj \
+		-scheme $(BUNDLE_NAME) \
 		-configuration Release \
 		-destination 'generic/platform=macOS' \
 		-derivedDataPath $(BUILD_DIR)/DerivedData \
 		ARCHS="arm64 x86_64" \
 		ONLY_ACTIVE_ARCH=NO \
 		build
-	@cp $(BUILD_DIR)/DerivedData/Build/Products/Release/$(BUNDLE_NAME) "$(EXECUTABLE)"
+	@cp "$(BUILD_DIR)/DerivedData/Build/Products/Release/$(BUNDLE_NAME).app/Contents/MacOS/$(BUNDLE_NAME)" "$(EXECUTABLE)"
+	@codesign --force --sign - "$(EXECUTABLE)"
 	@lipo "$(EXECUTABLE)" -verify_arch arm64 x86_64 || \
 		{ echo "❌ Expected universal binary, got: $$(lipo -archs "$(EXECUTABLE)")"; exit 1; }
 	@echo "Architectures: $$(lipo -archs "$(EXECUTABLE)")"

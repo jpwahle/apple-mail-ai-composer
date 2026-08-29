@@ -110,6 +110,13 @@ make build
 make run
 ```
 
+### Developing in Xcode
+
+Open `AIMailComposer.xcodeproj` and hit Run — the shared `AIMailComposer`
+scheme builds and launches the app bundle directly (requires Xcode 16 or
+later). The project uses a synchronized folder reference, so new source
+files added under `AIMailComposer/` are picked up automatically.
+
 ### Available Make Targets
 
 | Command | Description |
