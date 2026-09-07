@@ -7,6 +7,7 @@ struct APIKeySettingsView: View {
     @State private var geminiKey: String = ""
     @State private var openrouterKey: String = ""
     @State private var trustedtokensKey: String = ""
+    @State private var localKey: String = ""
     @State private var localBaseURL: String = ""
     @State private var statusMessage: String = ""
     @State private var isError: Bool = false
@@ -25,6 +26,7 @@ struct APIKeySettingsView: View {
             geminiKey = settingsStore.getAPIKey(for: .gemini) ?? ""
             openrouterKey = settingsStore.getAPIKey(for: .openrouter) ?? ""
             trustedtokensKey = settingsStore.getAPIKey(for: .trustedtokens) ?? ""
+            localKey = settingsStore.getAPIKey(for: .local) ?? ""
             localBaseURL = settingsStore.localAIBaseURL
         }
         .onChange(of: anthropicKey) { _, _ in scheduleAutoSave() }
@@ -32,6 +34,7 @@ struct APIKeySettingsView: View {
         .onChange(of: geminiKey) { _, _ in scheduleAutoSave() }
         .onChange(of: openrouterKey) { _, _ in scheduleAutoSave() }
         .onChange(of: trustedtokensKey) { _, _ in scheduleAutoSave() }
+        .onChange(of: localKey) { _, _ in scheduleAutoSave() }
         .onChange(of: localBaseURL) { _, _ in scheduleAutoSave() }
     }
 
@@ -50,10 +53,14 @@ struct APIKeySettingsView: View {
                    subtitle: "EU-sovereign models at api.trustedtokens.eu",
                    placeholder: "sk-bf…",
                    text: $trustedtokensKey)
-            keyRow("Local AI",
-                   subtitle: "LM Studio or Ollama server URL",
+            keyRow("Local AI URL",
+                   subtitle: "Local or remote OpenAI-compatible server",
                    placeholder: "http://localhost:1234",
                    text: $localBaseURL)
+            keyRow("Local AI API key",
+                   subtitle: "Leave empty if your server needs no key",
+                   placeholder: "Optional API key",
+                   text: $localKey)
         } header: {
             Text("API Keys")
         } footer: {
@@ -111,6 +118,7 @@ struct APIKeySettingsView: View {
             || trimmed(geminiKey) != (settingsStore.getAPIKey(for: .gemini) ?? "")
             || trimmed(openrouterKey) != (settingsStore.getAPIKey(for: .openrouter) ?? "")
             || trimmed(trustedtokensKey) != (settingsStore.getAPIKey(for: .trustedtokens) ?? "")
+            || trimmed(localKey) != (settingsStore.getAPIKey(for: .local) ?? "")
             || trimmed(localBaseURL) != settingsStore.localAIBaseURL
         guard changed else { return }
         saveKeys()
@@ -195,7 +203,7 @@ struct APIKeySettingsView: View {
             Text("No models available")
                 .font(.subheadline)
                 .fontWeight(.medium)
-            Text("Save an API key above, then models will be fetched from the provider.")
+            Text("Enter a provider API key or a Local AI URL above to load models.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -270,12 +278,14 @@ struct APIKeySettingsView: View {
         let trimmedGemini = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedOpenRouter = openrouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedTrustedTokens = trustedtokensKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLocalKey = localKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedLocalURL = localBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         anthropicKey = trimmedAnthropic
         openaiKey = trimmedOpenAI
         geminiKey = trimmedGemini
         openrouterKey = trimmedOpenRouter
         trustedtokensKey = trimmedTrustedTokens
+        localKey = trimmedLocalKey
         localBaseURL = trimmedLocalURL
 
         do {
@@ -284,6 +294,7 @@ struct APIKeySettingsView: View {
             try applyKey(trimmedGemini, for: .gemini)
             try applyKey(trimmedOpenRouter, for: .openrouter)
             try applyKey(trimmedTrustedTokens, for: .trustedtokens)
+            try applyKey(trimmedLocalKey, for: .local)
 
             if trimmedLocalURL.isEmpty {
                 settingsStore.localAIBaseURL = ""
@@ -329,7 +340,11 @@ struct APIKeySettingsView: View {
     private func applyKey(_ key: String, for provider: AIProvider) throws {
         if key.isEmpty {
             settingsStore.deleteAPIKey(for: provider)
-            settingsStore.clearModels(for: provider)
+            // Local AI can still load models without a key. Its URL controls
+            // whether the provider is configured.
+            if provider != .local {
+                settingsStore.clearModels(for: provider)
+            }
         } else {
             try settingsStore.setAPIKey(key, for: provider)
         }

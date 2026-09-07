@@ -1,15 +1,17 @@
 import Foundation
 
-/// Client for LM Studio and Ollama via their OpenAI-compatible API.
-/// The base URL is user-configurable; no API key is required.
+/// Client for local or remote OpenAI-compatible servers, including LM Studio,
+/// Ollama, and vLLM. The base URL is configurable and the API key is optional.
 final class LocalAIClient: AIClient {
     let provider = AIProvider.local
     private let baseURL: String
     private let model: String
+    private let apiKey: String?
 
-    init(baseURL: String, model: String) {
+    init(baseURL: String, model: String, apiKey: String? = nil) {
         self.baseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
         self.model = model
+        self.apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func stream(systemPrompt: String, userMessage: String) -> AsyncThrowingStream<String, Error> {
@@ -22,6 +24,9 @@ final class LocalAIClient: AIClient {
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"
                     request.setValue("application/json", forHTTPHeaderField: "content-type")
+                    if let apiKey = self.apiKey, !apiKey.isEmpty {
+                        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                    }
 
                     let body: [String: Any] = [
                         "model": self.model,

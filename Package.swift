@@ -14,5 +14,9 @@ let package = Package(
                 .process("Resources"),
             ]
         ),
+        .testTarget(
+            name: "AIMailComposerTests",
+            dependencies: ["AIMailComposer"]
+        ),
     ]
 )

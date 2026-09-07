@@ -99,12 +99,15 @@ enum ModelFetcher {
         }
     }
 
-    static func fetchLocalAIModels(baseURL: String) async throws -> [AIModel] {
+    static func fetchLocalAIModels(baseURL: String, apiKey: String? = nil) async throws -> [AIModel] {
         let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
         guard let url = URL(string: "\(base)/v1/models") else {
             throw AIClientError.requestFailed("Invalid Local AI base URL: \(baseURL)")
         }
-        let request = URLRequest(url: url)
+        var request = URLRequest(url: url)
+        if let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

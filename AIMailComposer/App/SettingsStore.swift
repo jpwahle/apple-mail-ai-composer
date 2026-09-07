@@ -264,7 +264,10 @@ final class SettingsStore: ObservableObject {
             isFetchingLocal = true
             localFetchError = nil
             do {
-                localModels = try await ModelFetcher.fetchLocalAIModels(baseURL: localAIBaseURL)
+                localModels = try await ModelFetcher.fetchLocalAIModels(
+                    baseURL: localAIBaseURL,
+                    apiKey: getAPIKey(for: .local)
+                )
                 ensureDefaultSelection()
             } catch {
                 localFetchError = error.localizedDescription
@@ -348,7 +351,7 @@ final class SettingsStore: ObservableObject {
         await withTaskGroup(of: Void.self) { group in
             for provider in AIProvider.allCases {
                 if provider == .local {
-                    // Local AI needs no API key — always attempt if a URL is set.
+                    // The Local AI key is optional — attempt if a URL is set.
                     if !localAIBaseURL.isEmpty {
                         group.addTask { await self.fetchModels(for: .local) }
                     }

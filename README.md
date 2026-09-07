@@ -29,6 +29,7 @@ The **Apple Mail AI Plugin** lives in your menu bar and connects directly to App
 - **Menu bar app** — stays out of your way until you need it
 - **Works with Apple Mail** — reads your email thread, recipients, subject, and current draft
 - **Multiple AI providers** — Anthropic (Claude), OpenAI (GPT), Google Gemini, OpenRouter, and TrustedTokens (EU-sovereign)
+- **Local and custom servers** — connect to local or remote OpenAI-compatible servers, with an optional API key
 - **Streaming responses** — see the reply as it's being written
 - **Language matching** — automatically replies in the same language as the conversation
 - **Keyboard shortcut** — **⌥H** (Option + H) to open from anywhere
@@ -44,7 +45,7 @@ Grab the latest `.dmg` from the [Webpage](https://jpwahle.github.io/apple-mail-a
 
 ## Get Your API Key
 
-The Apple Mail AI Plugin calls AI providers directly — you'll need an API key from at least one provider. Pick whichever you prefer:
+The Apple Mail AI Plugin calls AI providers directly. Add a provider API key or connect to a local or custom server below:
 
 ### Anthropic (Claude)
 
@@ -83,6 +84,15 @@ The Apple Mail AI Plugin calls AI providers directly — you'll need an API key 
 4. Copy the token
 
 > **Tip:** TrustedTokens is an EU-sovereign, OpenAI-compatible gateway hosted in Germany — all data processed in the EU. Model ids follow the `provider/model` convention (e.g. `skainet/zai-org/GLM-5.2`).
+
+### Local or Custom OpenAI-Compatible Server
+
+1. Open **Settings → Models**
+2. Enter your server's base URL in **Local AI URL**, for example `http://localhost:1234` (LM Studio), `http://localhost:11434` (Ollama), or `https://llm.example.com` (remote server). The app appends `/v1/models` and `/v1/chat/completions`, so omit those paths from the base URL.
+3. If your server requires authentication, enter its key in **Local AI API key**. This supports servers such as vLLM configured with an API key. Leave the field empty for servers without authentication.
+4. Settings save automatically and the app loads your server's models. Select one to start composing.
+
+The optional key is stored in macOS Keychain and sent as a Bearer token for both model loading and reply generation. Clear the key field to remove authentication.
 
 ### Add Your Key to the App
 

@@ -33,7 +33,11 @@ enum AIClientFactory {
             }
             return TrustedTokensClient(apiKey: key, model: model.id)
         case .local:
-            return LocalAIClient(baseURL: localAIBaseURL, model: model.id)
+            return LocalAIClient(
+                baseURL: localAIBaseURL,
+                model: model.id,
+                apiKey: keychainService.getKey(for: .local)
+            )
         }
     }
 }
