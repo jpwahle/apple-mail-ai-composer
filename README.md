@@ -83,7 +83,7 @@ The Apple Mail AI Plugin calls AI providers directly. Add a provider API key or 
 3. Open **Account** to find your API token
 4. Copy the token
 
-> **Tip:** TrustedTokens is an EU-sovereign, OpenAI-compatible gateway hosted in Germany — all data processed in the EU. Model ids follow the `provider/model` convention (e.g. `skainet/zai-org/GLM-5.2`).
+> **Tip:** TrustedTokens is an EU-sovereign, OpenAI-compatible gateway hosted in Germany — all data processed in the EU. Model ids follow the `provider/model` convention (e.g. `zai-org/GLM-5.3`).
 
 ### Local or Custom OpenAI-Compatible Server
 
